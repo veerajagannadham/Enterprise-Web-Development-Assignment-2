@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to your backend
       '/api': {
-        target: 'http://localhost:3000', // Your backend server port
+        target: 'https://6tjvw0a9d6.execute-api.us-east-1.amazonaws.com/prod', // Your backend server port
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       },

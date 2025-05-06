@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchPopularMovies, type MoviesApiResponse } from '../api/movies';
+import { fetchPopularMovies } from '../api/movies';
 import { Box, Typography, Pagination, CircularProgress, Alert } from '@mui/material';
 import { useState } from 'react';
 import MovieCard from '../components/MovieCard';
+import type { Movie } from '../types';
 
 export default function PopularMovies() {
   const [page, setPage] = useState(1);
   
-  const { data, isLoading, isError, error } = useQuery({
+  const { data: movies = [], isLoading, isError, error } = useQuery({
     queryKey: ['popularMovies', page],
     queryFn: () => fetchPopularMovies(page),
     placeholderData: (previousData) => previousData,
@@ -18,12 +19,8 @@ export default function PopularMovies() {
     setPage(value);
   };
 
-  // Type guard to ensure data has the expected structure
-  const hasValidData = (data: unknown): data is MoviesApiResponse => {
-    return !!data && typeof data === 'object' && 
-           'results' in data && 
-           'total_pages' in data;
-  };
+  // For debugging
+  console.log('API response (movies):', movies);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -39,11 +36,11 @@ export default function PopularMovies() {
 
       {isError && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          {error.message}
+          {error instanceof Error ? error.message : 'An error occurred'}
         </Alert>
       )}
 
-      {hasValidData(data) && data.results.length > 0 ? (
+      {movies && movies.length > 0 ? (
         <>
           <Box sx={{ 
             display: 'grid',
@@ -56,21 +53,13 @@ export default function PopularMovies() {
             gap: 3,
             mb: 4
           }}>
-            {data.results.map((movie) => (
+            {movies.map((movie: Movie) => (
               <MovieCard key={movie.id} movie={movie} />
             ))}
           </Box>
 
-          <Box display="flex" justifyContent="center">
-            <Pagination
-              count={data.total_pages}
-              page={page}
-              onChange={handlePageChange}
-              color="primary"
-              size="large"
-              sx={{ mt: 4 }}
-            />
-          </Box>
+          {/* Since we're not getting pagination info from the API,
+              we're not showing pagination controls */}
         </>
       ) : (
         !isLoading && !isError && (

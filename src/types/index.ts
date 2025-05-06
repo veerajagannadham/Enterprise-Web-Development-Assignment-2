@@ -12,6 +12,7 @@ export interface Movie extends MediaBase {
   genres?: Genre[]
   production_companies?: ProductionCompany[]
   reviews?: Review[] // Add reviews property to Movie interface
+  isPopular?: boolean // or `boolean` if it's always present
 }
 
 export interface Actor {

@@ -3,6 +3,13 @@ import type { Movie, Review } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
+// Define the MoviesApiResponse type for the movies endpoints
+export type MoviesApiResponse = {
+  results: Movie[]
+  page: number
+  total_pages: number
+}
+
 // Movie endpoints
 export const fetchAllMovies = async (): Promise<Movie[]> => {
   const response = await axios.get(`${API_BASE_URL}/movies`)
@@ -19,8 +26,8 @@ export const fetchMovieDetails = async (id: number): Promise<Movie> => {
   return response.data
 }
 
-export const fetchPopularMovies = async (): Promise<Movie[]> => {
-  const response = await axios.get(`${API_BASE_URL}/movies/popular`)
+export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => {
+  const response = await axios.get(`${API_BASE_URL}/movies`)
   return response.data
 }
 
