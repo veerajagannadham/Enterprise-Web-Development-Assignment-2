@@ -1,120 +1,150 @@
 import { useState, useEffect } from 'react'
-import { Box, Typography, Button, TextField, List, ListItem, Divider } from '@mui/material'
-import axios from 'axios'
+import { 
+  Box, Typography, Button, TextField, List, ListItem, 
+  Divider, Select, MenuItem, FormControl, InputLabel 
+} from '@mui/material'
+import { 
+  createReview, 
+  updateReview, 
+  getTranslatedReview,
+  fetchMovieById 
+} from '../api/movies'
+import type { Review } from '../types'
 
-interface Review {
-  id: string
-  author: string
-  content: string
-  rating: number
-  created_at: string
+// This helps TypeScript understand the structure of our form data
+interface ReviewFormData {
+  author: string;
+  content: string;
+  rating: number;
 }
 
-interface ReviewsSectionProps {
-  movieId: string
-}
-
-const ReviewsSection = ({ movieId }: ReviewsSectionProps) => {
+const ReviewsSection = ({ movieId }: { movieId: string }) => {
   const [reviews, setReviews] = useState<Review[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [newReview, setNewReview] = useState({
+  const [newReview, setNewReview] = useState<ReviewFormData>({
     author: '',
     content: '',
-    rating: 0
+    rating: 5
   })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [translation, setTranslation] = useState<{
+    reviewId: number
+    text: string
+  } | null>(null)
 
+  // Fetch reviews for this movie
   useEffect(() => {
     const fetchReviews = async () => {
-      try {
-        setLoading(true)
-        // Replace with your actual API endpoint from Assignment 1
-        const response = await axios.get(`/api/movies/${movieId}/reviews`)
-        setReviews(response.data)
-      } catch (err) {
-        setError('Failed to fetch reviews')
-      } finally {
-        setLoading(false)
-      }
+      const movie = await fetchMovieById(movieId)
+      setReviews(movie.reviews || [])
     }
-
     fetchReviews()
   }, [movieId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    try {
-      // Replace with your actual API endpoint from Assignment 1
-      const response = await axios.post(`/api/movies/${movieId}/reviews`, newReview)
-      setReviews([...reviews, response.data])
-      setNewReview({ author: '', content: '', rating: 0 })
-    } catch (err) {
-      setError('Failed to submit review')
-    }
+    const review = await createReview({
+      movieId,
+      ...newReview
+    })
+    setReviews([...reviews, review])
+    setNewReview({ author: '', content: '', rating: 5 })
+  }
+
+    const handleUpdate = async () => {
+    if (!editingId) return
+    const review = reviews.find(r => r.ReviewId === editingId)
+    if (!review) return
+    
+    const updated = await updateReview(
+      editingId.toString(),
+      {
+        content: review.Content,
+        rating: Number(review.Rating) // Ensure rating is a number
+      }
+    )
+    setReviews(reviews.map(r => r.ReviewId === editingId ? updated : r))
+    setEditingId(null)
+  }
+
+  const handleTranslate = async (reviewId: number, language: string) => {
+    const { translatedText } = await getTranslatedReview(
+      reviewId.toString(),
+      movieId,
+      language
+    )
+    setTranslation({ reviewId, text: translatedText })
   }
 
   return (
-    <Box>
+    <Box sx={{ mt: 4 }}>
       <Typography variant="h5" gutterBottom>
-        Reviews
+        Movie Reviews
       </Typography>
-      
-      {error && <Typography color="error">{error}</Typography>}
-      
-      {loading ? (
-        <Typography>Loading reviews...</Typography>
-      ) : reviews.length === 0 ? (
-        <Typography>No reviews yet. Be the first to review!</Typography>
-      ) : (
-        <List>
-          {reviews.map((review) => (
-            <ListItem key={review.id} alignItems="flex-start">
-              <Box>
-                <Typography fontWeight="bold">{review.author}</Typography>
-                <Typography>Rating: {review.rating}/5</Typography>
-                <Typography>{review.content}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {new Date(review.created_at).toLocaleDateString()}
-                </Typography>
-              </Box>
-              <Divider component="li" sx={{ my: 1 }} />
-            </ListItem>
-          ))}
-        </List>
-      )}
-      
+
+      {/* Reviews List */}
+      <List>
+        {reviews.map(review => (
+          <ListItem key={review.ReviewId} sx={{ flexDirection: 'column', alignItems: 'start' }}>
+            <Box width="100%">
+              <Typography fontWeight="bold">{review.Author}</Typography>
+              {translation?.reviewId === review.ReviewId ? (
+                <Typography>Translated: {translation.text}</Typography>
+              ) : (
+                <Typography>{review.Content}</Typography>
+              )}
+              <Typography>Rating: {review.Rating}/5</Typography>
+            </Box>
+
+            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+              <Button size="small" onClick={() => setEditingId(review.ReviewId)}>
+                Edit
+              </Button>
+              <FormControl size="small">
+                <InputLabel>Translate</InputLabel>
+                <Select
+                  value=""
+                  onChange={(e) => handleTranslate(review.ReviewId, e.target.value)}
+                  label="Translate"
+                >
+                  <MenuItem value="es">Spanish</MenuItem>
+                  <MenuItem value="fr">French</MenuItem>
+                  <MenuItem value="de">German</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            <Divider sx={{ my: 2 }} />
+          </ListItem>
+        ))}
+      </List>
+
+      {/* Add Review Form */}
       <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Add Your Review
-        </Typography>
+        <Typography variant="h6">Add Review</Typography>
         <TextField
           label="Your Name"
           fullWidth
-          margin="normal"
           value={newReview.author}
           onChange={(e) => setNewReview({...newReview, author: e.target.value})}
-          required
+          sx={{ mb: 2 }}
         />
         <TextField
           label="Your Review"
           fullWidth
           multiline
           rows={4}
-          margin="normal"
           value={newReview.content}
           onChange={(e) => setNewReview({...newReview, content: e.target.value})}
-          required
+          sx={{ mb: 2 }}
         />
         <TextField
           label="Rating (1-5)"
           type="number"
           inputProps={{ min: 1, max: 5 }}
-          margin="normal"
           value={newReview.rating}
           onChange={(e) => setNewReview({...newReview, rating: Number(e.target.value)})}
-          required
+          sx={{ mb: 2 }}
         />
-        <Button type="submit" variant="contained" sx={{ mt: 2 }}>
+        <Button type="submit" variant="contained">
           Submit Review
         </Button>
       </Box>
@@ -122,4 +152,4 @@ const ReviewsSection = ({ movieId }: ReviewsSectionProps) => {
   )
 }
 
-export default ReviewsSection;
+export default ReviewsSection

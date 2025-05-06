@@ -1,48 +1,58 @@
-import axios from 'axios';
-import type { Movie } from '../types';
+import axios from 'axios'
+import type { Movie, Review } from '../types'
 
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const BASE_URL = 'https://api.themoviedb.org/3';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
-export interface MoviesApiResponse {
-  page: number;
-  results: Movie[];
-  total_pages: number;
-  total_results: number;
+// Movie endpoints
+export const fetchAllMovies = async (): Promise<Movie[]> => {
+  const response = await axios.get(`${API_BASE_URL}/movies`)
+  return response.data
 }
 
-export interface MovieDetailsResponse extends Movie {
-  budget: number;
-  genres: { id: number; name: string }[];
-  homepage: string | null;
-  overview: string;
-  production_companies: { id: number; name: string; logo_path: string | null; origin_country: string }[];
-  production_countries: { iso_3166_1: string; name: string }[];
-  revenue: number;
-  runtime: number | null;
-  spoken_languages: { english_name: string; iso_639_1: string; name: string }[];
-  status: string;
-  tagline: string | null;
-  vote_average: number;
-  vote_count: number;
+export const fetchMovieById = async (id: string): Promise<Movie> => {
+  const response = await axios.get(`${API_BASE_URL}/movies/${id}`)
+  return response.data
 }
 
-export const fetchPopularMovies = async (page: number = 1): Promise<MoviesApiResponse> => {
-  const response = await axios.get<MoviesApiResponse>(`${BASE_URL}/movie/popular`, {
-    params: {
-      api_key: API_KEY,
-      page,
-    },
-  });
-  return response.data;
-};
+export const fetchMovieDetails = async (id: number): Promise<Movie> => {
+  const response = await axios.get(`${API_BASE_URL}/movies/${id}`)
+  return response.data
+}
 
-export const fetchMovieDetails = async (movieId: number): Promise<MovieDetailsResponse> => {
-  const response = await axios.get<MovieDetailsResponse>(`${BASE_URL}/movie/${movieId}`, {
-    params: {
-      api_key: API_KEY,
-      append_to_response: 'credits,videos,images',
-    },
-  });
-  return response.data;
-};
+export const fetchPopularMovies = async (): Promise<Movie[]> => {
+  const response = await axios.get(`${API_BASE_URL}/movies/popular`)
+  return response.data
+}
+
+// Review endpoints
+export const createReview = async (review: {
+  movieId: string
+  author: string
+  content: string
+  rating: number
+}): Promise<Review> => {
+  const response = await axios.post(`${API_BASE_URL}/movies/reviews`, review)
+  return response.data
+}
+
+export const updateReview = async (
+  reviewId: string,
+  updatedData: { content?: string; rating?: number }
+): Promise<Review> => {
+  const response = await axios.put(
+    `${API_BASE_URL}/movies/reviews/${reviewId}`,
+    updatedData
+  )
+  return response.data
+}
+
+export const getTranslatedReview = async (
+  reviewId: string,
+  movieId: string,
+  language: string
+): Promise<{ translatedText: string }> => {
+  const response = await axios.get(
+    `${API_BASE_URL}/movies/reviews/${reviewId}/${movieId}?language=${language}`
+  )
+  return response.data
+}

@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom'
-import { Box, AppBar, Toolbar, Typography, Button } from '@mui/material'
+import { Box, AppBar, Toolbar, Typography, Button, Container } from '@mui/material'
 import { Link } from 'react-router-dom'
 
 const Layout = () => {
@@ -14,16 +14,27 @@ const Layout = () => {
             Home
           </Button>
           <Button color="inherit" component={Link} to="/popular">
-            Popular
+            Popular Movies
+          </Button>
+          <Button color="inherit" component={Link} to="/actors">
+            Popular Actors
+          </Button>
+          <Button color="inherit" component={Link} to="/tv">
+            TV Series
+          </Button>
+          <Button color="inherit" component={Link} to="/fantasy">
+            Fantasy Movie
           </Button>
         </Toolbar>
       </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+      
+      <Container component="main" sx={{ flexGrow: 1, py: 3 }}>
         <Outlet />
-      </Box>
+      </Container>
+      
       <Box component="footer" sx={{ py: 3, px: 2, mt: 'auto', backgroundColor: 'grey.100' }}>
         <Typography variant="body2" color="text.secondary" align="center">
-          © {new Date().getFullYear()} MovieDB - All rights reserved
+          © {new Date().getFullYear()} MovieDB - This product uses the TMDB API but is not endorsed or certified by TMDB
         </Typography>
       </Box>
     </Box>
