@@ -1,130 +1,98 @@
-import { useState, useEffect } from 'react'
-import { 
-  Box, Typography, Button, TextField, List, ListItem, 
-  Divider, Select, MenuItem, FormControl, InputLabel 
-} from '@mui/material'
-import { 
-  createReview, 
-  updateReview, 
-  getTranslatedReview,
-  fetchMovieById 
-} from '../api/movies'
-import type { Review } from '../types'
+import React, { useState } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  List,
+  ListItem,
+  Divider,
+  Rating,
+} from '@mui/material';
+import { createReview } from '../api/movies';
+import type { Review } from '../types';
 
-// This helps TypeScript understand the structure of our form data
-interface ReviewFormData {
-  author: string;
-  content: string;
-  rating: number;
+interface ReviewsSectionProps {
+  movieId: number;
+  initialReviews: Review[];
 }
 
-const ReviewsSection = ({ movieId }: { movieId: string }) => {
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [newReview, setNewReview] = useState<ReviewFormData>({
-    author: '',
-    content: '',
-    rating: 5
-  })
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [translation, setTranslation] = useState<{
-    reviewId: number
-    text: string
-  } | null>(null)
+const ReviewsSection: React.FC<ReviewsSectionProps> = ({ movieId, initialReviews }) => {
+  const [reviews, setReviews] = useState<Review[]>(initialReviews || []);
+  const [author, setAuthor] = useState('');
+  const [content, setContent] = useState('');
+  const [rating, setRating] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch reviews for this movie
-  useEffect(() => {
-    const fetchReviews = async () => {
-      const movie = await fetchMovieById(movieId)
-      setReviews(movie.reviews || [])
+  const handleSubmit = async () => {
+    if (!author || !content || rating == null) {
+      setError('Please fill in all fields and select a rating.');
+      return;
     }
-    fetchReviews()
-  }, [movieId])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const review = await createReview({
-      movieId,
-      ...newReview
-    })
-    setReviews([...reviews, review])
-    setNewReview({ author: '', content: '', rating: 5 })
-  }
+    try {
+      const newReview = await createReview({
+        movieId: movieId.toString(),
+        author,
+        content,
+        rating,
+      });
 
-    const handleUpdate = async () => {
-    if (!editingId) return
-    const review = reviews.find(r => r.ReviewId === editingId)
-    if (!review) return
-    
-    const updated = await updateReview(
-      editingId.toString(),
-      {
-        content: review.Content,
-        rating: Number(review.Rating) // Ensure rating is a number
-      }
-    )
-    setReviews(reviews.map(r => r.ReviewId === editingId ? updated : r))
-    setEditingId(null)
-  }
+      setReviews((prev) => [...prev, newReview]);
 
-  const handleTranslate = async (reviewId: number, language: string) => {
-    const { translatedText } = await getTranslatedReview(
-      reviewId.toString(),
-      movieId,
-      language
-    )
-    setTranslation({ reviewId, text: translatedText })
-  }
+      // Reset form
+      setAuthor('');
+      setContent('');
+      setRating(null);
+      setError(null);
+    } catch (err: any) {
+      setError('Failed to submit review. Please try again.');
+    }
+  };
 
   return (
-    <Box sx={{ mt: 4 }}>
+    <Box mt={6}>
       <Typography variant="h5" gutterBottom>
-        Movie Reviews
+        Reviews
       </Typography>
 
-      {/* Reviews List */}
-      <List>
-        {reviews.map(review => (
-          <ListItem key={review.ReviewId} sx={{ flexDirection: 'column', alignItems: 'start' }}>
-            <Box width="100%">
-              <Typography fontWeight="bold">{review.Author}</Typography>
-              {translation?.reviewId === review.ReviewId ? (
-                <Typography>Translated: {translation.text}</Typography>
-              ) : (
-                <Typography>{review.Content}</Typography>
-              )}
-              <Typography>Rating: {review.Rating}/5</Typography>
-            </Box>
+      {error && <Typography color="error">{error}</Typography>}
 
-            <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-              <Button size="small" onClick={() => setEditingId(review.ReviewId)}>
-                Edit
-              </Button>
-              <FormControl size="small">
-                <InputLabel>Translate</InputLabel>
-                <Select
-                  value=""
-                  onChange={(e) => handleTranslate(review.ReviewId, e.target.value)}
-                  label="Translate"
-                >
-                  <MenuItem value="es">Spanish</MenuItem>
-                  <MenuItem value="fr">French</MenuItem>
-                  <MenuItem value="de">German</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-          </ListItem>
-        ))}
-      </List>
+      {reviews.length === 0 ? (
+        <Typography>No reviews yet.</Typography>
+      ) : (
+        <List>
+          {reviews.map((review) => (
+            <React.Fragment key={`${review.Author}-${review.CreatedAt}`}>
+              <ListItem alignItems="flex-start">
+                <Box>
+                  <Typography fontWeight="bold">{review.Author}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Rating: {review.Rating}/5
+                  </Typography>
+                  <Typography variant="body1">{review.Content}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {review.CreatedAt
+                      ? new Date(review.CreatedAt).toLocaleDateString()
+                      : 'Invalid Date'}
+                  </Typography>
+                </Box>
+              </ListItem>
+              <Divider component="li" />
+            </React.Fragment>
+          ))}
+        </List>
+      )}
 
-      {/* Add Review Form */}
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
-        <Typography variant="h6">Add Review</Typography>
+      <Box mt={5}>
+        <Typography variant="h6" gutterBottom>
+          Add Your Review
+        </Typography>
         <TextField
           label="Your Name"
           fullWidth
-          value={newReview.author}
-          onChange={(e) => setNewReview({...newReview, author: e.target.value})}
+          value={author}
+          onChange={(e) => setAuthor(e.target.value)}
           sx={{ mb: 2 }}
         />
         <TextField
@@ -132,24 +100,23 @@ const ReviewsSection = ({ movieId }: { movieId: string }) => {
           fullWidth
           multiline
           rows={4}
-          value={newReview.content}
-          onChange={(e) => setNewReview({...newReview, content: e.target.value})}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
           sx={{ mb: 2 }}
         />
-        <TextField
-          label="Rating (1-5)"
-          type="number"
-          inputProps={{ min: 1, max: 5 }}
-          value={newReview.rating}
-          onChange={(e) => setNewReview({...newReview, rating: Number(e.target.value)})}
-          sx={{ mb: 2 }}
-        />
-        <Button type="submit" variant="contained">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <Typography>Rating:</Typography>
+          <Rating
+            value={rating}
+            onChange={(_, newValue) => setRating(newValue)}
+          />
+        </Box>
+        <Button variant="contained" color="primary" onClick={handleSubmit}>
           Submit Review
         </Button>
       </Box>
     </Box>
-  )
-}
+  );
+};
 
-export default ReviewsSection
+export default ReviewsSection;

@@ -1,23 +1,30 @@
-import type { Movie } from '../types'
-import { Card, CardMedia, CardContent, Typography, CardActions, Button } from '@mui/material'
-import { Link } from 'react-router-dom'
+import type { Movie } from "../types";
+import {
+  Card,
+  CardMedia,
+  CardContent,
+  Typography,
+  CardActions,
+  Button,
+} from "@mui/material";
+import { Link } from "react-router-dom";
 
 interface MovieCardProps {
-  movie: Movie
+  movie: Movie;
 }
 
 const MovieCard = ({ movie }: MovieCardProps) => {
   return (
-    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <CardMedia
         component="img"
         image={
           movie.poster_path
             ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-            : '/placeholder-movie.jpg'
+            : "/placeholder-movie.jpg"
         }
         alt={movie.title}
-        sx={{ height: 300, objectFit: 'cover' }}
+        sx={{ height: 300, objectFit: "cover" }}
       />
       <CardContent sx={{ flexGrow: 1 }}>
         <Typography gutterBottom variant="h6" component="div">
@@ -27,7 +34,7 @@ const MovieCard = ({ movie }: MovieCardProps) => {
           {movie.release_date}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {movie.overview.substring(0, 100)}...
+          {movie.overview?.substring(0, 100) || "No overview available..."}...
         </Typography>
       </CardContent>
       <CardActions>
@@ -41,7 +48,7 @@ const MovieCard = ({ movie }: MovieCardProps) => {
         </Button>
       </CardActions>
     </Card>
-  )
-}
+  );
+};
 
-export default MovieCard
+export default MovieCard;
