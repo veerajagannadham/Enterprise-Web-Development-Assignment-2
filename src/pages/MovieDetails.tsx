@@ -26,28 +26,38 @@ const MovieDetails = () => {
   } = useQuery<Movie, Error>({
     queryKey: ['movie', id],
     queryFn: () => fetchMovieDetails(Number(id)),
-    enabled: !!id && !isNaN(Number(id))
+    enabled: !!id && !isNaN(Number(id)),
+    retry: 2, // Retry failed requests up to 2 times
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
   });
 
   if (isLoading) {
     return (
-      <Box display="flex" justifyContent="center" mt={4}>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="70vh">
         <CircularProgress size={60} />
+        <Typography variant="h6" ml={2}>Loading movie details...</Typography>
       </Box>
     );
   }
 
   if (isError || !movie) {
     return (
-      <Box p={3}>
-        <Alert severity="error">
-          {error ? error.message : 'Movie not found'}
+      <Box p={3} display="flex" justifyContent="center" minHeight="50vh" alignItems="center">
+        <Alert severity="error" sx={{ maxWidth: 600 }}>
+          <Typography variant="h6">Error Loading Movie</Typography>
+          <Typography>{error ? error.message : 'Movie not found or details unavailable'}</Typography>
+          <Typography variant="body2" mt={1}>
+            Please check your connection and try again, or go back to the movies list.
+          </Typography>
         </Alert>
       </Box>
     );
   }
 
-  const formattedReleaseDate = movie.release_date !== '0000-00-00'
+  console.log("Rendered movie:", movie); // Debug: check the movie object in the component
+
+  // Format release date safely
+  const formattedReleaseDate = movie.release_date && movie.release_date !== '0000-00-00'
     ? new Date(movie.release_date).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -55,11 +65,11 @@ const MovieDetails = () => {
       })
     : 'Release date not available';
 
+  // Use the poster_path directly from the API response
+  // It's already formatted with the base URL in the fetchMovieDetails function
+  const posterUrl = movie.poster_path || '/placeholder-movie.jpg';
+  
   // Handle all possible undefined values with fallbacks
-  const posterSrc = movie.poster_path 
-  ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` 
-  : '/placeholder-movie.jpg';
-;
   const voteAverage = movie.vote_average ?? 0;
   const voteCount = movie.vote_count ?? 0;
   const genres = movie.genres ?? [];
@@ -79,7 +89,7 @@ const MovieDetails = () => {
       {/* Movie Header */}
       <Box>
         <Typography variant="h3" component="h1" gutterBottom>
-          {movie.title}
+          {movie.title || 'Unknown Title'}
           {movie.original_title && movie.original_title !== movie.title && (
             <Typography variant="subtitle1" color="text.secondary">
               Original Title: {movie.original_title}
@@ -107,8 +117,8 @@ const MovieDetails = () => {
           }}>
             <Box
               component="img"
-              src={posterSrc}
-              alt={movie.title}
+              src={posterUrl}
+              alt={movie.title || 'Movie poster'}
               sx={{ 
                 width: '100%', 
                 display: 'block',
@@ -117,6 +127,7 @@ const MovieDetails = () => {
               }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
+                target.onerror = null; // Prevent infinite loop
                 target.src = '/placeholder-movie.jpg';
               }}
             />
@@ -172,12 +183,12 @@ const MovieDetails = () => {
               Overview
             </Typography>
             <Typography paragraph>
-              {movie.overview || 'No overview available.'}
+              {movie.overview?.trim() ? movie.overview : 'No overview available.'}
             </Typography>
           </Box>
 
           {/* Genres */}
-          {genres.length > 0 && (
+          {genres && genres.length > 0 && (
             <Box mb={4}>
               <Typography variant="h5" gutterBottom>
                 Genres
@@ -196,7 +207,7 @@ const MovieDetails = () => {
           )}
 
           {/* Production Companies */}
-          {productionCompanies.length > 0 && (
+          {productionCompanies && productionCompanies.length > 0 && (
             <Box mb={4}>
               <Typography variant="h5" gutterBottom>
                 Production Companies
@@ -221,8 +232,6 @@ const MovieDetails = () => {
       </Box>
 
       <Divider sx={{ my: 4 }} />
-
-      {/* Reviews Section */}
       <ReviewsSection 
         movieId={id || ''} 
         initialReviews={reviews} 

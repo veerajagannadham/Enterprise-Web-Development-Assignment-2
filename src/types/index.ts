@@ -1,5 +1,7 @@
+/* Core Media Interfaces */
 export interface MediaBase {
   id: number;
+  title: string;
   overview: string;
   poster_path: string | null;
   vote_average: number;
@@ -8,15 +10,36 @@ export interface MediaBase {
   popularity?: number;
 }
 
-export interface Movie extends MediaBase {
+/* Fantasy Movie Types */
+export interface FantasyMovieInput {
   title: string;
+  overview: string;
+  genres: string[];
+  releaseDate: string; // Flexible format for form input
+  runtime?: number;
+  productionCompanies: string[];
+}
+
+export interface FantasyMovie extends MediaBase {
+  title: string;
+  overview: string;
+  genres: Genre[];
+  release_date: `${number}-${number}-${number}`;
+  runtime?: number;
+  production_companies: ProductionCompany[];
+  isFantasy: true;
+  created_at: string;
+  created_by?: string;
+}
+
+/* TMDB Standard Types */
+export interface Movie extends MediaBase {
   original_title?: string;
   release_date: `${number}-${number}-${number}`;
   runtime?: number | null;
   genres?: Genre[];
   production_companies?: ProductionCompany[];
   reviews?: Review[];
-  isPopular?: boolean;
   original_language?: string;
   video?: boolean;
   adult?: boolean;
@@ -43,28 +66,7 @@ export interface TVSeries extends MediaBase {
   seasons?: Season[];
 }
 
-export interface Actor {
-  id: number;
-  name: string;
-  biography: string;
-  profile_path: string | null;
-  known_for_department: string;
-  birthday: `${number}-${number}-${number}` | null;
-  place_of_birth: string | null;
-  also_known_as?: string[];
-  gender?: number;
-  popularity?: number;
-}
-
-export interface FantasyMovie {
-  title: string;
-  overview: string;
-  genres?: string[];
-  releaseDate: string;
-  runtime?: number;
-  productionCompanies?: string[];
-}
-
+/* Supporting Types */
 export interface Genre {
   id: number;
   name: string;
@@ -85,22 +87,25 @@ export interface Network {
 }
 
 export interface Review {
-  ReviewId: number;
+  id: string | number;
   MovieId: number;
-  Author: string;
-  Content: string;
-  Rating: number;
-  CreatedAt: string;
+  author: string;
+  content: string;
+  rating?: number;
+  created_at: string;
   author_details?: {
-    name: string;
-    username: string;
-    avatar_path: string | null;
-    rating: number | null;
+    name?: string;
+    username?: string;
+    avatar_path?: string | null;
+    rating?: number | null;
   };
+  isFantasy?: boolean;
 }
 
 export interface TranslatedReview {
   translatedText: string;
+  originalLanguage: string;
+  translatedLanguage: string;
 }
 
 export interface Cast {
@@ -166,3 +171,32 @@ export interface Season {
   vote_average: number;
 }
 
+export interface BasicMovie {
+  id: number;
+  title: string;
+  original_title: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path?: string | null;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+  release_date: string;
+  adult: boolean;
+  video: boolean;
+  genre_ids: number[];
+  isFantasy?: boolean;
+}
+
+export interface Actor {
+  id: number;
+  name: string;
+  biography: string;
+  profile_path: string | null;
+  known_for_department: string;
+  birthday: `${number}-${number}-${number}` | null;
+  place_of_birth: string | null;
+  also_known_as?: string[];
+  gender?: number;
+  popularity?: number;
+}
