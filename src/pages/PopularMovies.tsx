@@ -8,7 +8,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Pagination
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { useState, useMemo } from 'react';
@@ -25,30 +26,32 @@ const SORT_OPTIONS = [
   { value: 'release-asc', label: 'Release Date (Oldest First)' },
 ];
 
+// Number of movies to display per page (client-side pagination)
+const MOVIES_PER_PAGE = 8;
+
 export default function PopularMovies() {
-  const [page, setPage] = useState(1);
+  const [backendPage, setBackendPage] = useState(1);
+  const [clientPage, setClientPage] = useState(1);
   const [sortOption, setSortOption] = useState('rating-desc'); // Default sort: highest rating
   
-  const { data: movies = [], isLoading, isError, error } = useQuery({
-    queryKey: ['popularMovies', page],
-    queryFn: () => fetchPopularMovies(page),
+  // This query fetches all movies from the API at once
+  const { data: allMovies = [], isLoading, isError, error } = useQuery({
+    queryKey: ['popularMovies', backendPage],
+    queryFn: () => fetchPopularMovies(backendPage),
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
-    setPage(value);
-  };
-
   const handleSortChange = (event: SelectChangeEvent) => {
     setSortOption(event.target.value);
+    setClientPage(1); // Reset to first page when sorting changes
   };
 
   // Sort movies based on the selected option
   const sortedMovies = useMemo(() => {
-    if (!movies || movies.length === 0) return [];
+    if (!allMovies || allMovies.length === 0) return [];
     
-    const moviesCopy = [...movies];
+    const moviesCopy = [...allMovies];
     
     switch (sortOption) {
       case 'title-asc':
@@ -82,11 +85,37 @@ export default function PopularMovies() {
       default:
         return moviesCopy;
     }
-  }, [movies, sortOption]);
+  }, [allMovies, sortOption]);
 
-  // For debugging
-  console.log('API response (movies):', movies);
-  console.log('Current sort option:', sortOption);
+  // Client-side pagination logic
+  const paginatedMovies = useMemo(() => {
+    const startIndex = (clientPage - 1) * MOVIES_PER_PAGE;
+    return sortedMovies.slice(startIndex, startIndex + MOVIES_PER_PAGE);
+  }, [sortedMovies, clientPage]);
+
+  // Calculate total pages
+  const totalPages = Math.ceil(sortedMovies.length / MOVIES_PER_PAGE);
+
+  // Handle page change
+  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
+    setClientPage(value);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Load more movies from backend if we're running low
+  const needMoreMovies = useMemo(() => {
+    // If we have fewer than 2 pages worth of movies or 
+    // if we're on the last page, try to fetch more
+    return allMovies.length < MOVIES_PER_PAGE * 2 || 
+           clientPage === totalPages;
+  }, [allMovies.length, clientPage, totalPages]);
+
+  // Effect to fetch more movies if needed
+  useMemo(() => {
+    if (needMoreMovies && !isLoading && !isError) {
+      setBackendPage(prev => prev + 1);
+    }
+  }, [needMoreMovies, isLoading, isError]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -119,7 +148,7 @@ export default function PopularMovies() {
         </FormControl>
       </Box>
 
-      {isLoading && (
+      {isLoading && allMovies.length === 0 && (
         <Box display="flex" justifyContent="center">
           <CircularProgress />
         </Box>
@@ -131,7 +160,7 @@ export default function PopularMovies() {
         </Alert>
       )}
 
-      {sortedMovies && sortedMovies.length > 0 ? (
+      {paginatedMovies && paginatedMovies.length > 0 ? (
         <>
           <Box sx={{ 
             display: 'grid',
@@ -144,13 +173,33 @@ export default function PopularMovies() {
             gap: 3,
             mb: 4
           }}>
-            {sortedMovies.map((movie: Movie) => (
+            {paginatedMovies.map((movie: Movie) => (
               <MovieCard key={movie.id} movie={movie} />
             ))}
           </Box>
 
-          {/* Since we're not getting pagination info from the API,
-              we're not showing pagination controls */}
+          {/* Pagination controls */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+            <Pagination 
+              count={totalPages} 
+              page={clientPage}
+              onChange={handlePageChange}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+            />
+          </Box>
+          
+          {/* Loading indicator for fetching more movies */}
+          {isLoading && allMovies.length > 0 && (
+            <Box display="flex" justifyContent="center" mt={2}>
+              <CircularProgress size={24} />
+              <Typography variant="body2" sx={{ ml: 1 }}>
+                Loading more movies...
+              </Typography>
+            </Box>
+          )}
         </>
       ) : (
         !isLoading && !isError && (

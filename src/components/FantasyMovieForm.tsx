@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Button, 
   TextField, 
@@ -6,7 +6,8 @@ import {
   Chip, 
   Snackbar, 
   Alert,
-  Typography
+  Typography,
+  InputAdornment
 } from '@mui/material';
 import { createFantasyMovie } from '../api/movies';
 import type { FantasyMovieInput } from '../types';
@@ -17,7 +18,8 @@ const FantasyMovieForm = () => {
     overview: '',
     genres: [],
     releaseDate: '',
-    productionCompanies: []
+    productionCompanies: [],
+    runtime: undefined
   });
   
   const [newGenre, setNewGenre] = useState('');
@@ -25,20 +27,52 @@ const FantasyMovieForm = () => {
   const [notification, setNotification] = useState({
     open: false,
     message: '',
-    severity: 'success' as 'success' | 'error'
+    severity: 'success' as 'success' | 'error' | 'warning' // <-- include "warning"
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState({
+    title: false,
+    overview: false,
+    genres: false,
+    releaseDate: false
+  });
+
+  // Validate form whenever movie state changes
+  useEffect(() => {
+    setFormErrors({
+      title: !movie.title.trim(),
+      overview: !movie.overview.trim(),
+      genres: movie.genres.length === 0,
+      releaseDate: !movie.releaseDate
+    });
+  }, [movie]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (formErrors.title || formErrors.overview || 
+        formErrors.genres || formErrors.releaseDate) {
+      setNotification({
+        open: true,
+        message: 'Please fill all required fields',
+        severity: 'error'
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
-      // Format date to YYYY-MM-DD before submission
-      const formattedDate = formatFormDate(movie.releaseDate);
+      // Format date to YYYY-MM-DD
+      const formattedDate = new Date(movie.releaseDate)
+        .toISOString()
+        .split('T')[0];
+      
       await createFantasyMovie({
         ...movie,
-        releaseDate: formattedDate
+        releaseDate: formattedDate,
+        productionCompanies: movie.productionCompanies || [] // Ensure array exists
       });
       
       setNotification({
@@ -53,7 +87,8 @@ const FantasyMovieForm = () => {
         overview: '',
         genres: [],
         releaseDate: '',
-        productionCompanies: []
+        productionCompanies: [],
+        runtime: undefined
       });
     } catch (error) {
       setNotification({
@@ -66,43 +101,45 @@ const FantasyMovieForm = () => {
     }
   };
 
-  // Helper to format date from various input formats to YYYY-MM-DD
-  const formatFormDate = (dateString: string): string => {
-    if (!dateString) return '';
-    
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString; // Fallback to raw input
-    
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-  };
-
   const handleAddGenre = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newGenre) {
+    if (e.key === 'Enter' && newGenre.trim()) {
       e.preventDefault();
-      if (!movie.genres.includes(newGenre)) {
+      const genreToAdd = newGenre.trim();
+      
+      if (movie.genres.includes(genreToAdd)) {
+        setNotification({
+          open: true,
+          message: 'This genre already exists',
+          severity: 'warning'
+        });
+      } else {
         setMovie({
           ...movie, 
-          genres: [...movie.genres, newGenre]
+          genres: [...movie.genres, genreToAdd]
         });
-        setNewGenre('');
       }
+      setNewGenre('');
     }
   };
 
   const handleAddCompany = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newCompany) {
+    if (e.key === 'Enter' && newCompany.trim()) {
       e.preventDefault();
-      if (!movie.productionCompanies.includes(newCompany)) {
+      const companyToAdd = newCompany.trim();
+      
+      if (movie.productionCompanies.includes(companyToAdd)) {
+        setNotification({
+          open: true,
+          message: 'This company already exists',
+          severity: 'warning'
+        });
+      } else {
         setMovie({
           ...movie, 
-          productionCompanies: [...movie.productionCompanies, newCompany]
+          productionCompanies: [...(movie.productionCompanies || []), companyToAdd]
         });
-        setNewCompany('');
       }
+      setNewCompany('');
     }
   };
 
@@ -117,29 +154,33 @@ const FantasyMovieForm = () => {
       </Typography>
       
       <TextField
-        label="Title"
+        label="Title *"
         fullWidth
         margin="normal"
         value={movie.title}
         onChange={(e) => setMovie({...movie, title: e.target.value})}
+        error={formErrors.title}
+        helperText={formErrors.title ? "Title is required" : ""}
         required
       />
       
       <TextField
-        label="Overview"
+        label="Overview *"
         fullWidth
         multiline
         rows={4}
         margin="normal"
         value={movie.overview}
         onChange={(e) => setMovie({...movie, overview: e.target.value})}
+        error={formErrors.overview}
+        helperText={formErrors.overview ? "Overview is required" : ""}
         required
       />
       
       {/* Genre input */}
       <Box sx={{ my: 2 }}>
         <Typography variant="subtitle1" gutterBottom>
-          Genres
+          Genres *
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
           {movie.genres.map((genre) => (
@@ -162,7 +203,13 @@ const FantasyMovieForm = () => {
           onKeyDown={handleAddGenre}
           margin="normal"
           helperText="Press Enter to add genre"
+          error={formErrors.genres && movie.genres.length === 0}
         />
+        {formErrors.genres && (
+          <Typography color="error" variant="caption">
+            At least one genre is required
+          </Typography>
+        )}
       </Box>
       
       {/* Production Companies input */}
@@ -171,14 +218,14 @@ const FantasyMovieForm = () => {
           Production Companies
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-          {movie.productionCompanies.map((company) => (
+          {(movie.productionCompanies || []).map((company) => (
             <Chip 
               key={company} 
               label={company} 
               onDelete={() => 
                 setMovie({
                   ...movie, 
-                  productionCompanies: movie.productionCompanies.filter(c => c !== company)
+                  productionCompanies: movie.productionCompanies?.filter(c => c !== company) || []
                 })
               } 
             />
@@ -195,13 +242,15 @@ const FantasyMovieForm = () => {
       </Box>
       
       <TextField
-        label="Release Date"
+        label="Release Date *"
         type="date"
         fullWidth
         margin="normal"
         InputLabelProps={{ shrink: true }}
         value={movie.releaseDate}
         onChange={(e) => setMovie({...movie, releaseDate: e.target.value})}
+        error={formErrors.releaseDate}
+        helperText={formErrors.releaseDate ? "Release date is required" : ""}
         required
       />
       
@@ -211,10 +260,17 @@ const FantasyMovieForm = () => {
         fullWidth
         margin="normal"
         value={movie.runtime || ''}
-        onChange={(e) => setMovie({
-          ...movie, 
-          runtime: e.target.value ? parseInt(e.target.value) : undefined
-        })}
+        onChange={(e) => {
+          const value = parseInt(e.target.value);
+          setMovie({
+            ...movie, 
+            runtime: !isNaN(value) && value > 0 ? value : undefined
+          });
+        }}
+        InputProps={{
+          endAdornment: <InputAdornment position="end">min</InputAdornment>,
+          inputProps: { min: 1 }
+        }}
       />
       
       <Button 
@@ -222,7 +278,7 @@ const FantasyMovieForm = () => {
         variant="contained" 
         color="primary" 
         sx={{ mt: 2 }}
-        disabled={isSubmitting}
+        disabled={isSubmitting || Object.values(formErrors).some(Boolean)}
         fullWidth
       >
         {isSubmitting ? 'Creating...' : 'Create Fantasy Movie'}

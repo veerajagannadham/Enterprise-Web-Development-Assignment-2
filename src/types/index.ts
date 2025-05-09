@@ -11,14 +11,16 @@ export interface MediaBase {
 }
 
 /* Fantasy Movie Types */
-export interface FantasyMovieInput {
+export interface CreateFantasyMovieInput {
   title: string;
   overview: string;
-  genres: string[];
-  releaseDate: string; // Flexible format for form input
+  genres: string[]; // Genre names or ids depending on your form
+  releaseDate: string; // Should accept flexible input like "2025-01-01"
   runtime?: number;
-  productionCompanies: string[];
+  productionCompanies: string[]; // Names, not IDs
 }
+
+export type FantasyMovieInput = CreateFantasyMovieInput;
 
 export interface FantasyMovie extends MediaBase {
   title: string;
@@ -86,20 +88,24 @@ export interface Network {
   origin_country: string;
 }
 
+export interface CreateReviewInput {
+  movieId: number;
+  reviewerId: string;
+  content: string;
+}
+
+export interface CreateReviewResponse {
+  message: string;
+  reviewId: number;
+}
+
 export interface Review {
-  id: string | number;
+  id: number;
   MovieId: number;
   author: string;
   content: string;
-  rating?: number;
   created_at: string;
-  author_details?: {
-    name?: string;
-    username?: string;
-    avatar_path?: string | null;
-    rating?: number | null;
-  };
-  isFantasy?: boolean;
+  rating?: number;
 }
 
 export interface TranslatedReview {
@@ -199,4 +205,21 @@ export interface Actor {
   also_known_as?: string[];
   gender?: number;
   popularity?: number;
+}
+
+// Add these to your existing types
+export interface UpdateReviewInput {
+  content: string;
+}
+
+export interface UpdateReviewResponse {
+  message: string;
+  updatedReview: Review;
+}
+
+export interface ApiErrorResponse {
+  message?: string;
+  error?: string;
+  statusCode?: number;
+  // Add any other error fields your API might return
 }

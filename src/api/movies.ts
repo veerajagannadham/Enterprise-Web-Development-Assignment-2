@@ -1,7 +1,7 @@
 import axios, {AxiosError} from 'axios';
-import type { Movie, Genre, ProductionCompany, Review, FantasyMovie, FantasyMovieInput } from '../types';
+import type { Movie, Genre, ProductionCompany, CreateReviewInput, Review, CreateReviewResponse, FantasyMovie, FantasyMovieInput, UpdateReviewInput, UpdateReviewResponse, ApiErrorResponse } from '../types';
 
-const API_BASE_URL = 'https://6tjvw0a9d6.execute-api.us-east-1.amazonaws.com/prod';
+const API_BASE_URL = 'https://vb9rdedn26.execute-api.us-east-1.amazonaws.com/prod';
 // Removed API_KEY since it's not needed
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -217,47 +217,94 @@ export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => 
   }
 };
 
-export const createMovieReview = async (
-  movieId: string,
-  reviewData: {
-    author: string;
-    content: string;
-    rating: number;
-  }
-): Promise<Review> => {
+// movies.ts (frontend)
+
+
+// In movies.ts, update the createMovieReview function:
+
+export async function createMovieReview(
+  reviewData: CreateReviewInput
+): Promise<CreateReviewResponse> {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/movies/${movieId}/reviews`,
-      reviewData
+    const response = await axios.post<CreateReviewResponse>(
+      `${API_BASE_URL}/movies/reviews`,
+      {
+        movieId: Number(reviewData.movieId),
+        reviewerId: reviewData.reviewerId,
+        content: reviewData.content
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
+
     return response.data;
   } catch (error) {
-    console.error('Error creating review:', error);
-    throw error;
+    // Properly type the error response
+    const axiosError = error as AxiosError<{
+      message?: string;
+      error?: string;
+    }>;
+    
+    // Log detailed error information
+    console.error('API Error Details:', {
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+      headers: axiosError.response?.headers
+    });
+
+    // Provide a user-friendly error message
+    const errorMessage = 
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to create review. Please try again later.';
+
+    throw new Error(errorMessage);
   }
-};
+}
 
 export const updateMovieReview = async (
-  movieId: string,
-  reviewId: string,
-  updatedData: {
-    content?: string;
-    rating?: number;
-  }
-): Promise<Review> => {
+  movieId: number,
+  reviewId: number,
+  updateData: UpdateReviewInput
+): Promise<UpdateReviewResponse> => {
   try {
-    const response = await axios.put<Review>(
+    const response = await axios.put<UpdateReviewResponse>(
       `${API_BASE_URL}/movies/${movieId}/reviews/${reviewId}`,
-      updatedData
+      updateData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     );
+
+    // Validate response structure
+    if (!response.data.message || !response.data.updatedReview) {
+      throw new Error('Invalid response structure from server');
+    }
+
     return response.data;
-  } catch (err) {
-    const error = err as AxiosError<{ message?: string }>;
-    console.error(
-      `Error updating review ${reviewId} for movie ${movieId}:`,
-      error.response?.data?.message || error.message
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    
+    console.error('Update Review Error:', {
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+      config: axiosError.config
+    });
+
+    const errorMessage = (
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to update review'
     );
-    throw new Error(error.response?.data?.message || 'Failed to update review');
+
+    throw new Error(errorMessage);
   }
 };
 
@@ -280,38 +327,136 @@ export const getTranslatedReview = async (
   }
 };
 
-// Fantasy Movie API
-// Fantasy Movie API
 export const createFantasyMovie = async (
   input: FantasyMovieInput
 ): Promise<FantasyMovie> => {
   try {
+    // Validate required fields
+    if (!input.title || !input.overview || !input.genres || !input.releaseDate) {
+      throw new Error('Missing required fields: title, overview, genres, or releaseDate');
+    }
+
     // Validate date format
     if (!isValidDateString(input.releaseDate)) {
       throw new Error('Invalid date format. Please use YYYY-MM-DD');
     }
 
-    // Convert form input to API payload
+    // Format payload to exactly match backend expectations
     const payload = {
-      ...input,
-      release_date: input.releaseDate,
-      genres: input.genres.map(name => ({ name })),
-      production_companies: input.productionCompanies.map(name => ({ name })),
-      vote_average: 0,
-      vote_count: 0,
-      isFantasy: true
+      title: input.title,
+      overview: input.overview,
+      genres: input.genres, // Already an array of strings
+      releaseDate: input.releaseDate, // Note: camelCase vs release_date
+      productionCompanies: input.productionCompanies || [], // Ensure array
+      runtime: input.runtime ? Number(input.runtime) : undefined // Optional number
     };
 
-    const response = await axios.post<FantasyMovie>(
-      `${API_BASE_URL}/fantasy-movies`,
-      payload
+    const response = await axios.post<{ 
+      message: string; 
+      movieId: string 
+    }>(
+      `${API_BASE_URL}/fantasy/movies`,
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
-    return response.data;
+
+    // Return a complete fantasy movie object that matches the FantasyMovie interface
+    return {
+      id: Number(response.data.movieId), // Convert string to number
+      title: input.title,
+      overview: input.overview,
+      poster_path: null,
+      backdrop_path: null,
+      vote_average: 0,
+      vote_count: 0,
+      popularity: 0,
+      // Create proper Genre objects with required id property
+      genres: input.genres.map((name, index) => ({ 
+        id: index + 1, // Generate temporary IDs
+        name 
+      })),
+      release_date: input.releaseDate as `${number}-${number}-${number}`,
+      // Create proper ProductionCompany objects with required fields
+      production_companies: input.productionCompanies?.map((name, index) => ({ 
+        id: index + 1, // Generate temporary IDs
+        name,
+        logo_path: null,
+        origin_country: 'unknown'
+      })) || [],
+      // Use undefined instead of null for runtime if not provided
+      runtime: input.runtime || undefined,
+      isFantasy: true,
+      // Add the required created_at field
+      created_at: new Date().toISOString()
+    };
   } catch (error) {
-    const axiosError = error as AxiosError<{ message?: string }>;
-    console.error('Error creating fantasy movie:', axiosError.response?.data);
-    throw new Error(
-      axiosError.response?.data?.message || 'Failed to create fantasy movie'
+    const axiosError = error as AxiosError<{ 
+      message?: string;
+      error?: string;
+    }>;
+    
+    console.error('Error creating fantasy movie:', {
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+      config: axiosError.config
+    });
+
+    const errorMessage = (
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to create fantasy movie'
     );
+
+    throw new Error(errorMessage);
+  }
+};
+
+export const deleteMovieReview = async (
+  movieId: number,
+  reviewId: number
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await axios.delete(
+      `${API_BASE_URL}/movies/${movieId}/reviews/${reviewId}`,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    // Handle different successful response structures
+    if (response.status === 204) {
+      return { success: true, message: 'Review deleted successfully' };
+    }
+
+    if (response.data?.message) {
+      return { success: true, message: response.data.message };
+    }
+
+    return { success: true, message: 'Review deleted' };
+    
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    
+    console.error('Delete Review Error:', {
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+      config: axiosError.config
+    });
+
+    const errorMessage = (
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to delete review'
+    );
+
+    throw new Error(errorMessage);
   }
 };
