@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom'
-import { Box, AppBar, Toolbar, Typography, Button, Container } from '@mui/material'
+import { Box, AppBar, Toolbar, Typography, Button, Container, Stack } from '@mui/material'
 import { Link } from 'react-router-dom'
 
 const Layout = () => {
@@ -10,21 +10,50 @@ const Layout = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             MovieDB
           </Typography>
-          <Button color="inherit" component={Link} to="/">
-            Home
-          </Button>
-          <Button color="inherit" component={Link} to="/popular">
-            Popular Movies
-          </Button>
-          <Button color="inherit" component={Link} to="/actors">
-            Popular Actors
-          </Button>
-          <Button color="inherit" component={Link} to="/tv">
-            TV Series
-          </Button>
-          <Button color="inherit" component={Link} to="/fantasy">
-            Fantasy Movie
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Button color="inherit" component={Link} to="/">
+              Home
+            </Button>
+            <Button color="inherit" component={Link} to="/popular">
+              Popular Movies
+            </Button>
+            <Button color="inherit" component={Link} to="/actors">
+              Popular Actors
+            </Button>
+            <Button color="inherit" component={Link} to="/tv">
+              TV Series
+            </Button>
+            <Button color="inherit" component={Link} to="/fantasy">
+              Fantasy Movie
+            </Button>
+            
+            {/* Auth buttons with some spacing */}
+            <Stack direction="row" spacing={1} sx={{ ml: 2 }}>
+              <Button 
+                variant="outlined" 
+                color="inherit" 
+                component={Link} 
+                to="/signin"
+                sx={{ 
+                  borderColor: 'white',
+                  '&:hover': { 
+                    borderColor: 'white', 
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)' 
+                  } 
+                }}
+              >
+                Sign In
+              </Button>
+              <Button 
+                variant="contained" 
+                color="secondary" 
+                component={Link} 
+                to="/signup"
+              >
+                Sign Up
+              </Button>
+            </Stack>
+          </Box>
         </Toolbar>
       </AppBar>
       

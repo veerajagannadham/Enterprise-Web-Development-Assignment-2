@@ -223,3 +223,31 @@ export interface ApiErrorResponse {
   statusCode?: number;
   // Add any other error fields your API might return
 }
+
+/* Authentication Types */
+export interface SignUpInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface SignUpResponse {
+  message: string;
+  userId: string;
+}
+
+export interface SignInInput {
+  email: string;
+  password: string;
+}
+
+export interface User {
+  userId: string;
+  name: string;
+  email: string;
+}
+
+export interface SignInResponse {
+  message: string;
+  user: User;
+}

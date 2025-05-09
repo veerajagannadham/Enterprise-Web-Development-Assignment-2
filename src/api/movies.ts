@@ -1,5 +1,21 @@
 import axios, {AxiosError} from 'axios';
-import type { Movie, Genre, ProductionCompany, CreateReviewInput, Review, CreateReviewResponse, FantasyMovie, FantasyMovieInput, UpdateReviewInput, UpdateReviewResponse, ApiErrorResponse } from '../types';
+import type { 
+  Movie, 
+  Genre, 
+  ProductionCompany, 
+  CreateReviewInput, 
+  Review, 
+  CreateReviewResponse, 
+  FantasyMovie, 
+  FantasyMovieInput, 
+  UpdateReviewInput, 
+  UpdateReviewResponse, 
+  ApiErrorResponse,
+  SignUpInput,
+  SignUpResponse,
+  SignInInput,
+  SignInResponse
+} from '../types';
 
 const API_BASE_URL = 'https://vb9rdedn26.execute-api.us-east-1.amazonaws.com/prod';
 // Removed API_KEY since it's not needed
@@ -217,8 +233,115 @@ export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => 
   }
 };
 
-// movies.ts (frontend)
+// User Authentication Functions
+export const signUp = async (userData: SignUpInput): Promise<SignUpResponse> => {
+  try {
+    const response = await axios.post<SignUpResponse>(
+      `${API_BASE_URL}/auth/signup`,
+      userData,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 8000 // 8 second timeout
+      }
+    );
 
+    if (response.status >= 400) {
+      throw new Error(response.data?.message || 'Registration failed');
+    }
+
+    return response.data;
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    
+    let errorMessage = 'Failed to create account. Please try again later.';
+    
+    if (axiosError.response) {
+      // Try to parse the error response
+      try {
+        const data = axiosError.response.data;
+        errorMessage = data.message || data.error || errorMessage;
+      } catch (e) {
+        console.error('Error parsing error response:', e);
+      }
+    } else if (axiosError.code === 'ECONNABORTED') {
+      errorMessage = 'Request timeout. Please try again.';
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+export const signIn = async (credentials: SignInInput): Promise<SignInResponse> => {
+  try {
+    // Validate required fields
+    if (!credentials.email || !credentials.password) {
+      throw new Error('Email and password are required');
+    }
+
+    const response = await axios.post<SignInResponse>(
+      `${API_BASE_URL}/auth/signin`,
+      credentials,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    // Store user information in local storage or state management
+    if (response.data.user) {
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+
+    return response.data;
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    
+    console.error('SignIn Error:', {
+      status: axiosError.response?.status,
+      data: axiosError.response?.data
+    });
+
+    // Handle specific error codes
+    if (axiosError.response?.status === 401) {
+      throw new Error('Invalid email or password');
+    }
+    
+    if (axiosError.response?.status === 404) {
+      throw new Error('Account not found');
+    }
+
+    const errorMessage = 
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to sign in. Please try again later.';
+      
+    throw new Error(errorMessage);
+  }
+};
+
+export const signOut = (): void => {
+  // Remove user from localStorage
+  localStorage.removeItem('user');
+  
+  // You could also invalidate tokens on the backend if needed
+  // For now, just client-side logout
+};
+
+export const getCurrentUser = (): SignInResponse['user'] | null => {
+  const userStr = localStorage.getItem('user');
+  if (!userStr) return null;
+  
+  try {
+    return JSON.parse(userStr);
+  } catch (e) {
+    console.error('Error parsing user from storage:', e);
+    return null;
+  }
+};
 
 // In movies.ts, update the createMovieReview function:
 

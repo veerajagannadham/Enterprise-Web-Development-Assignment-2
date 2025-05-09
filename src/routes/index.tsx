@@ -8,6 +8,8 @@ import ActorDetails from '../pages/ActorDetails'
 import TVSeriesDetails from '../pages/TVSeriesDetails'
 import FantasyMovieForm from '../components/FantasyMovieForm'
 import Layout from '../components/Layout'
+import SignIn from '../pages/SignIn'
+import SignUp from '../pages/SignUp'
 
 const router = createBrowserRouter([
   {
@@ -22,9 +24,10 @@ const router = createBrowserRouter([
       { path: 'movie/:id', element: <MovieDetails /> },
       { path: 'actor/:id', element: <ActorDetails /> },
       { path: 'tv/:id', element: <TVSeriesDetails /> },
+      { path: 'signin', element: <SignIn /> },
+      { path: 'signup', element: <SignUp /> },
     ],
   },
-
-  
 ])
+
 export default router

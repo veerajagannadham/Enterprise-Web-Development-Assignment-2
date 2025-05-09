@@ -31,12 +31,25 @@ const ActorDetails = () => {
           <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 2 }}>
             {actor?.birthday} • {actor?.place_of_birth}
           </Typography>
-          <Typography variant="h6" sx={{ mb: 1 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
             Biography
           </Typography>
-          <Typography variant="body1" paragraph>
-            {actor?.biography || 'No biography available.'}
-          </Typography>
+          <Box sx={{ maxWidth: '800px', lineHeight: 1.6 }}>
+            {actor?.biography ? (
+              actor.biography.split('\n\n').map((paragraph, index) => (
+                <Typography 
+                  key={index} 
+                  variant="body1" 
+                  paragraph 
+                  sx={{ mb: 2 }}
+                >
+                  {paragraph}
+                </Typography>
+              ))
+            ) : (
+              <Typography variant="body1">No biography available.</Typography>
+            )}
+          </Box>
         </Box>
       </Box>
     </Box>
