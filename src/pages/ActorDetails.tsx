@@ -5,7 +5,11 @@ import { Box, Typography, CircularProgress, Alert } from '@mui/material'
 
 const ActorDetails = () => {
   const { id } = useParams<{ id: string }>()
-  const { data: actor, isLoading, error } = useQuery(['actor', id], () => fetchActorDetails(id!))
+  
+  const { data: actor, isLoading, error } = useQuery({
+    queryKey: ['actor', id],
+    queryFn: () => fetchActorDetails(id!),
+  })
 
   if (isLoading) return <CircularProgress />
   if (error) return <Alert severity="error">Error loading actor details</Alert>
