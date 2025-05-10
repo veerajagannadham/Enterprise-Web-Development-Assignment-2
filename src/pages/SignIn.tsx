@@ -10,10 +10,15 @@ import {
   Snackbar,
   CircularProgress,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Avatar,
+  IconButton,
+  Menu,
+  MenuItem,
+  Divider
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { signIn } from '../api/movies'; // Import the signIn function
+import { signIn, signOut, getCurrentUser } from '../api/movies';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
@@ -22,6 +27,13 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  
+  // User menu state
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+  
+  // Get current user if logged in
+  const currentUser = getCurrentUser();
 
   // Form validation
   const [emailError, setEmailError] = useState('');
@@ -30,7 +42,6 @@ const SignIn = () => {
   const validateForm = () => {
     let isValid = true;
 
-    // Email validation
     if (!email.trim()) {
       setEmailError('Email is required');
       isValid = false;
@@ -38,7 +49,6 @@ const SignIn = () => {
       setEmailError('');
     }
 
-    // Password validation
     if (!password) {
       setPasswordError('Password is required');
       isValid = false;
@@ -52,33 +62,29 @@ const SignIn = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
     setError('');
 
     try {
-      // Call the signIn API function
       const response = await signIn({ email, password });
       
-      // Save user data to local storage or state management solution
       const userData = {
         userId: response.user.userId,
         name: response.user.name,
         email: response.user.email,
       };
       
-      // If "Remember me" is checked, save to localStorage, otherwise to sessionStorage
       if (rememberMe) {
         localStorage.setItem('user', JSON.stringify(userData));
       } else {
         sessionStorage.setItem('user', JSON.stringify(userData));
       }
 
-      // Redirect to dashboard or home page
-      navigate('/dashboard');
+      // Force UI update
+      window.dispatchEvent(new Event('storage'));
+      navigate('/');
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -86,6 +92,95 @@ const SignIn = () => {
       setLoading(false);
     }
   };
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    signOut();
+    window.dispatchEvent(new Event('storage'));
+    handleMenuClose();
+    navigate('/signin');
+  };
+
+  if (currentUser) {
+    return (
+      <Container maxWidth="sm">
+        <Paper elevation={3} sx={{ p: 4, mt: 8, textAlign: 'center' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            <IconButton onClick={handleMenuOpen} sx={{ p: 0 }}>
+              <Avatar sx={{ width: 80, height: 80, bgcolor: 'primary.main' }}>
+                {currentUser.name?.charAt(0).toUpperCase() || 
+                 currentUser.email?.charAt(0).toUpperCase()}
+              </Avatar>
+            </IconButton>
+            <Menu
+              anchorEl={anchorEl}
+              open={open}
+              onClose={handleMenuClose}
+              PaperProps={{
+                elevation: 0,
+                sx: {
+                  overflow: 'visible',
+                  filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+                  mt: 1.5,
+                  '& .MuiAvatar-root': {
+                    width: 32,
+                    height: 32,
+                    ml: -0.5,
+                    mr: 1,
+                  },
+                },
+              }}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <MenuItem onClick={handleMenuClose}>
+                <Avatar /> Profile
+              </MenuItem>
+              <MenuItem onClick={handleMenuClose}>
+                <Avatar /> My account
+              </MenuItem>
+              <Divider />
+              <MenuItem onClick={handleLogout}>
+                Logout
+              </MenuItem>
+            </Menu>
+          </Box>
+          
+          <Typography variant="h5" gutterBottom>
+            Welcome back, {currentUser.name}!
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            You are already signed in as {currentUser.email}
+          </Typography>
+          
+          <Button
+            variant="contained"
+            onClick={handleLogout}
+            sx={{ mt: 2 }}
+          >
+            Sign Out
+          </Button>
+          
+          <Box sx={{ mt: 3 }}>
+            <Button 
+              component={RouterLink} 
+              to="/" 
+              variant="outlined"
+            >
+              Go to Home
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="sm">
@@ -148,7 +243,6 @@ const SignIn = () => {
           </Button>
           
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-            
             <RouterLink to="/signup" style={{ textDecoration: 'none' }}>
               <Typography variant="body2" color="primary">
                 Don't have an account? Sign Up
