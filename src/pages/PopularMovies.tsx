@@ -1,16 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchPopularMovies } from '../api/movies';
-import { 
-  Box, 
-  Typography, 
-  CircularProgress, 
-  Alert, 
+import {
+  Box,
+  Typography,
+  CircularProgress,
+  Alert,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   Pagination,
-  Stack
+  Stack,
+  TextField,
+  Slider,
+  Button
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { useState, useMemo, useEffect } from 'react';
@@ -42,9 +45,19 @@ const MOVIES_PER_PAGE = 8;
 export default function PopularMovies() {
   const [backendPage, setBackendPage] = useState(1);
   const [clientPage, setClientPage] = useState(1);
-  const [sortOption, setSortOption] = useState('rating-desc');
-  const [genreFilter, setGenreFilter] = useState<number | 'all'>('all');
   const [allMovies, setAllMovies] = useState<Movie[]>([]);
+
+  // Active filters
+  const [filters, setFilters] = useState({
+    title: '',
+    genre: 'all' as number | 'all',
+    year: '',
+    vote: [0, 10] as [number, number],
+    sort: 'rating-desc',
+  });
+
+  // Form (draft) state
+  const [formValues, setFormValues] = useState({ ...filters });
 
   const { data: newMovies = [], isLoading, isError, error } = useQuery({
     queryKey: ['popularMovies', backendPage],
@@ -52,11 +65,9 @@ export default function PopularMovies() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Accumulate movies as we load more pages
   useEffect(() => {
     if (newMovies.length > 0) {
       setAllMovies(prev => {
-        // Avoid duplicates by checking movie IDs
         const existingIds = new Set(prev.map(movie => movie.id));
         const uniqueNewMovies = newMovies.filter(movie => !existingIds.has(movie.id));
         return [...prev, ...uniqueNewMovies];
@@ -64,84 +75,85 @@ export default function PopularMovies() {
     }
   }, [newMovies]);
 
-  const handleSortChange = (event: SelectChangeEvent) => {
-    setSortOption(event.target.value);
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFilters({ ...formValues });
     setClientPage(1);
   };
 
-  const handleGenreChange = (event: SelectChangeEvent<number | 'all'>) => {
-    const value = event.target.value === 'all' ? 'all' : Number(event.target.value);
-    setGenreFilter(value);
+  const handleReset = () => {
+    const reset = {
+      title: '',
+      genre: 'all' as number | 'all',
+      year: '',
+      vote: [0, 10] as [number, number],
+      sort: 'rating-desc',
+    };
+    setFormValues(reset);
+    setFilters(reset);
     setClientPage(1);
   };
 
-  // Apply both sorting and filtering at once
-// Updated filtering logic in the processedMovies useMemo
-const processedMovies = useMemo(() => {
-  if (!allMovies || allMovies.length === 0) return [];
-  
-  // Make a copy to avoid mutating the original data
-  let moviesCopy = [...allMovies];
-  
-  // Step 1: Apply genre filter if selected
-  // Genre filtering
-  
-  if (genreFilter !== 'all') {
-    moviesCopy = moviesCopy.filter(movie => {
-      // For BasicMovie type with genre_ids
-      if ('genre_ids' in movie && Array.isArray(movie.genre_ids)) {
-        return movie.genre_ids.includes(genreFilter as number);
-      }
-      // For Movie type with genres array
-      if ('genres' in movie && Array.isArray(movie.genres)) {
-        return movie.genres.some(g => g.id === genreFilter);
-      }
-      return false;
-    });
-  }
-   
-    // Step 2: Apply sorting
-    switch (sortOption) {
+  const processedMovies = useMemo(() => {
+    let moviesCopy = [...allMovies];
+
+    if (filters.title.trim()) {
+      moviesCopy = moviesCopy.filter(movie =>
+        movie.title.toLowerCase().includes(filters.title.toLowerCase())
+      );
+    }
+
+    if (filters.genre !== 'all') {
+      moviesCopy = moviesCopy.filter(movie =>
+        movie.genre_ids.includes(filters.genre as number)
+      );
+    }
+
+    if (filters.year) {
+      moviesCopy = moviesCopy.filter(movie =>
+        movie.release_date?.startsWith(filters.year)
+      );
+    }
+
+    moviesCopy = moviesCopy.filter(movie =>
+      movie.vote_average >= filters.vote[0] && movie.vote_average <= filters.vote[1]
+    );
+
+    switch (filters.sort) {
       case 'title-asc':
         return moviesCopy.sort((a, b) => a.title.localeCompare(b.title));
       case 'title-desc':
         return moviesCopy.sort((a, b) => b.title.localeCompare(a.title));
       case 'rating-desc':
-        return moviesCopy.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+        return moviesCopy.sort((a, b) => b.vote_average - a.vote_average);
       case 'rating-asc':
-        return moviesCopy.sort((a, b) => (a.vote_average || 0) - (b.vote_average || 0));
+        return moviesCopy.sort((a, b) => a.vote_average - b.vote_average);
       case 'release-desc':
-        return moviesCopy.sort((a, b) => 
-          (new Date(b.release_date || 0).getTime()) - (new Date(a.release_date || 0).getTime()
-        ));
+        return moviesCopy.sort((a, b) =>
+          new Date(b.release_date).getTime() - new Date(a.release_date).getTime()
+        );
       case 'release-asc':
         return moviesCopy.sort((a, b) =>
-          (new Date(a.release_date || 0).getTime()) - (new Date(b.release_date || 0).getTime())
+          new Date(a.release_date).getTime() - new Date(b.release_date).getTime()
         );
       default:
         return moviesCopy;
     }
-  }, [allMovies, genreFilter, sortOption]);
+  }, [allMovies, filters]);
 
   const paginatedMovies = useMemo(() => {
-    const startIndex = (clientPage - 1) * MOVIES_PER_PAGE;
-    return processedMovies.slice(startIndex, startIndex + MOVIES_PER_PAGE);
+    const start = (clientPage - 1) * MOVIES_PER_PAGE;
+    return processedMovies.slice(start, start + MOVIES_PER_PAGE);
   }, [processedMovies, clientPage]);
 
   const totalPages = Math.max(1, Math.ceil(processedMovies.length / MOVIES_PER_PAGE));
 
-  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
-    setClientPage(value);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Load more data when we're near the end of current data
   useEffect(() => {
     if (
-      !isLoading && 
+      !isLoading &&
       processedMovies.length > 0 &&
       clientPage >= totalPages - 1 &&
-      allMovies.length < 100 // Prevent infinite loading
+      allMovies.length < 100
     ) {
       setBackendPage(prev => prev + 1);
     }
@@ -149,62 +161,85 @@ const processedMovies = useMemo(() => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        mb: 3,
-        flexDirection: { xs: 'column', sm: 'row' },
-        gap: 2
-      }}>
-        <Typography variant="h4">
-          Popular Movies
-        </Typography>
+      <Typography variant="h4" mb={2}>Popular Movies</Typography>
 
-        <Stack direction="row" spacing={2} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          {/* Genre filter dropdown */}
-          <FormControl sx={{ minWidth: 200 }} size="small">
-            <InputLabel id="genre-filter-label">Filter by Genre</InputLabel>
+      <form onSubmit={handleFormSubmit}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ flexWrap: 'wrap', alignItems: 'center', mb: 2 }}
+        >
+          <TextField
+            size="small"
+            label="Search Title"
+            value={formValues.title}
+            onChange={e => setFormValues({ ...formValues, title: e.target.value })}
+          />
+
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Genre</InputLabel>
             <Select
-              labelId="genre-filter-label"
-              id="genre-filter"
-              value={genreFilter}
-              label="Filter by Genre"
-              onChange={handleGenreChange}
+              value={formValues.genre}
+              label="Genre"
+              onChange={(e) => {
+                const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                setFormValues({ ...formValues, genre: val });
+              }}
             >
-              {GENRES.map((genre) => (
-                <MenuItem key={genre.id} value={genre.id}>
-                  {genre.name}
-                </MenuItem>
+              {GENRES.map(g => (
+                <MenuItem key={g.id} value={g.id}>{g.name}</MenuItem>
               ))}
             </Select>
           </FormControl>
 
-          {/* Sorting dropdown */}
-          <FormControl sx={{ minWidth: 200 }} size="small">
-            <InputLabel id="sort-select-label">Sort By</InputLabel>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Sort By</InputLabel>
             <Select
-              labelId="sort-select-label"
-              id="sort-select"
-              value={sortOption}
+              value={formValues.sort}
               label="Sort By"
-              onChange={handleSortChange}
+              onChange={e => setFormValues({ ...formValues, sort: e.target.value })}
             >
-              {SORT_OPTIONS.map(option => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
+              {SORT_OPTIONS.map(opt => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
-        </Stack>
-      </Box>
 
-      {isLoading && allMovies.length === 0 && (
-        <Box display="flex" justifyContent="center">
-          <CircularProgress />
-        </Box>
-      )}
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Release Year</InputLabel>
+            <Select
+              value={formValues.year}
+              label="Release Year"
+              onChange={e => setFormValues({ ...formValues, year: e.target.value })}
+            >
+              <MenuItem value="">All Years</MenuItem>
+              <MenuItem value="2023">2023</MenuItem>
+              <MenuItem value="2022">2022</MenuItem>
+              <MenuItem value="2021">2021</MenuItem>
+              <MenuItem value="2020">2020</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Box sx={{ minWidth: 200, px: 2 }}>
+            <Typography variant="caption">
+              Rating Range: {formValues.vote[0]} – {formValues.vote[1]}
+            </Typography>
+            <Slider
+              value={formValues.vote}
+              onChange={(_, val) => setFormValues({ ...formValues, vote: val as [number, number] })}
+              min={0}
+              max={10}
+              step={0.1}
+              valueLabelDisplay="auto"
+            />
+          </Box>
+
+          <Stack direction="row" spacing={1} sx={{ mt: { xs: 1, sm: 0 } }}>
+            <Button type="submit" variant="contained">Search</Button>
+            <Button type="button" variant="outlined" onClick={handleReset}>Reset</Button>
+          </Stack>
+        </Stack>
+      </form>
 
       {isError && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -212,56 +247,55 @@ const processedMovies = useMemo(() => {
         </Alert>
       )}
 
-      <Box sx={{ 
-        display: 'grid',
-        gridTemplateColumns: {
-          xs: '1fr',
-          sm: 'repeat(2, 1fr)',
-          md: 'repeat(3, 1fr)',
-          lg: 'repeat(4, 1fr)'
-        },
-        gap: 3,
-        mb: 4
-      }}>
-        {paginatedMovies.length > 0 ? (
-          paginatedMovies.map((movie: Movie) => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))
-        ) : (
-          !isLoading && (
-            <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
-              <Typography variant="h6">
-                {genreFilter === 'all' 
-                  ? 'No movies available' 
-                  : `No movies found for this genre. Try a different filter.`}
-              </Typography>
-            </Box>
-          )
-        )}
-      </Box>
+      {isLoading && allMovies.length === 0 ? (
+        <Box display="flex" justifyContent="center"><CircularProgress /></Box>
+      ) : (
+        <>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)',
+                lg: 'repeat(4, 1fr)'
+              },
+              gap: 3,
+              mb: 4
+            }}
+          >
+            {paginatedMovies.length > 0 ? (
+              paginatedMovies.map((movie: Movie) => (
+                <MovieCard key={movie.id} movie={movie} />
+              ))
+            ) : (
+              <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
+                <Typography variant="h6">
+                  No movies match the selected filters.
+                </Typography>
+              </Box>
+            )}
+          </Box>
 
-      {/* Pagination controls - only show if we have more than one page */}
-      {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
-          <Pagination 
-            count={totalPages} 
-            page={clientPage}
-            onChange={handlePageChange}
-            color="primary"
-            size="large"
-            showFirstButton
-            showLastButton
-          />
-        </Box>
+          {totalPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+              <Pagination
+                count={totalPages}
+                page={clientPage}
+                onChange={(_, val) => setClientPage(val)}
+                color="primary"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          )}
+        </>
       )}
-      
-      {/* Loading indicator for fetching more movies */}
+
       {isLoading && allMovies.length > 0 && (
         <Box display="flex" justifyContent="center" mt={2}>
-          <CircularProgress size={24} />
-          <Typography variant="body2" sx={{ ml: 1 }}>
-            Loading more movies...
-          </Typography>
+          <CircularProgress size={24} sx={{ mr: 1 }} />
+          <Typography variant="body2">Loading more movies...</Typography>
         </Box>
       )}
     </Box>

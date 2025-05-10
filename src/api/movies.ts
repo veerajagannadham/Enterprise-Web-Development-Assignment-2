@@ -619,3 +619,4 @@ export const fetchSimilarMovies = async (movieId: number, page: number = 1): Pro
     );
   }
 };
+

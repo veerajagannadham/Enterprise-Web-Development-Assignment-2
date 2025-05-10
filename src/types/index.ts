@@ -279,3 +279,23 @@ export interface ActorItem {
 
 
 export type FavoriteType = 'tv' | 'actor';
+
+// Add these to your existing types
+export interface SearchCriteria {
+  title?: string;
+  minYear?: number;
+  maxYear?: number;
+  genres?: number[];
+  minRating?: number;
+  maxRating?: number;
+  language?: string;
+  sortBy?: string;
+  includeAdult?: boolean;
+}
+
+export interface SearchResponse {
+  results: Movie[];
+  totalResults: number;
+  page: number;
+  totalPages: number;
+}
