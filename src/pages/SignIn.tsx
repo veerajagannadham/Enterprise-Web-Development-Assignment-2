@@ -17,7 +17,7 @@ import {
   MenuItem,
   Divider
 } from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { signIn, signOut, getCurrentUser } from '../api/movies';
 
 const SignIn = () => {
@@ -27,6 +27,10 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get redirect location or default to home
+  const from = location.state?.from?.pathname || '/';
   
   // User menu state
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -45,12 +49,18 @@ const SignIn = () => {
     if (!email.trim()) {
       setEmailError('Email is required');
       isValid = false;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Please enter a valid email address');
+      isValid = false;
     } else {
       setEmailError('');
     }
 
     if (!password) {
       setPasswordError('Password is required');
+      isValid = false;
+    } else if (password.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
       isValid = false;
     } else {
       setPasswordError('');
@@ -82,9 +92,9 @@ const SignIn = () => {
         sessionStorage.setItem('user', JSON.stringify(userData));
       }
 
-      // Force UI update
+      // Force UI update and redirect to previous location or home
       window.dispatchEvent(new Event('storage'));
-      navigate('/');
+      navigate(from, { replace: true });
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -176,6 +186,15 @@ const SignIn = () => {
             >
               Go to Home
             </Button>
+            <Button
+              component={RouterLink}
+              to="/fantasy"
+              variant="contained"
+              color="secondary"
+              sx={{ ml: 2 }}
+            >
+              Create Fantasy Movie
+            </Button>
           </Box>
         </Paper>
       </Container>
@@ -188,6 +207,12 @@ const SignIn = () => {
         <Typography component="h1" variant="h4" align="center" gutterBottom>
           Sign In
         </Typography>
+
+        {from !== '/' && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Please sign in to access {location.state?.from?.pathname}
+          </Alert>
+        )}
 
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 2 }}>
           <TextField
@@ -246,6 +271,11 @@ const SignIn = () => {
             <RouterLink to="/signup" style={{ textDecoration: 'none' }}>
               <Typography variant="body2" color="primary">
                 Don't have an account? Sign Up
+              </Typography>
+            </RouterLink>
+            <RouterLink to="/" style={{ textDecoration: 'none' }}>
+              <Typography variant="body2" color="primary">
+                Back to Home
               </Typography>
             </RouterLink>
           </Box>

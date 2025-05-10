@@ -221,7 +221,7 @@ export interface ApiErrorResponse {
   message?: string;
   error?: string;
   statusCode?: number;
-  // Add any other error fields your API might return
+  status_message?: string;
 }
 
 /* Authentication Types */

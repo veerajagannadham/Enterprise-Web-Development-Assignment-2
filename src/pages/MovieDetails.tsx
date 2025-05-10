@@ -1,6 +1,6 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchMovieDetails } from '../api/movies';
+import { fetchMovieDetails, fetchSimilarMovies } from '../api/movies';
 import { 
   Box, 
   Typography, 
@@ -10,13 +10,17 @@ import {
   Alert,
   Rating,
   Paper,
-  Stack
+  Stack,
+  Button,
+  Card,
+  CardMedia
 } from '@mui/material';
 import ReviewsSection from '../components/ReviewsSection';
 import type { Movie, Review } from '../types';
 
 const MovieDetails = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
   const { 
     data: movie, 
@@ -29,6 +33,18 @@ const MovieDetails = () => {
     enabled: !!id && !isNaN(Number(id)),
     retry: 2, // Retry failed requests up to 2 times
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+  });
+
+  // Add query for similar movies
+  const { 
+    data: similarMovies = [], 
+    isLoading: isLoadingSimilar 
+  } = useQuery({
+    queryKey: ['similarMovies', id],
+    queryFn: () => fetchSimilarMovies(Number(id)),
+    enabled: !!id && !isNaN(Number(id)),
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 
   if (isLoading) {
@@ -231,10 +247,99 @@ const MovieDetails = () => {
         </Box>
       </Box>
 
+      {/* Similar Movies Section */}
+      <Box mt={4}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h5">
+            Similar Movies
+          </Typography>
+          {similarMovies.length > 0 && (
+            <Button 
+              variant="outlined"
+              onClick={() => navigate(`/similar/${id}`)}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              View All Similar Movies
+            </Button>
+          )}
+        </Box>
+        
+        {isLoadingSimilar && (
+          <Box display="flex" alignItems="center">
+            <CircularProgress size={24} />
+            <Typography ml={2}>Loading similar movies...</Typography>
+          </Box>
+        )}
+        
+        {!isLoadingSimilar && similarMovies.length > 0 ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 2,
+              justifyContent: { xs: 'center', sm: 'flex-start' }
+            }}
+          >
+            {similarMovies.slice(0, 4).map((movie) => (
+              <Box 
+                key={movie.id}
+                sx={{ 
+                  width: { xs: '45%', sm: '22%' },
+                  minWidth: 120,
+                  cursor: 'pointer',
+                  '&:hover .movie-poster': {
+                    transform: 'scale(1.03)',
+                    boxShadow: 4
+                  }
+                }}
+                onClick={() => navigate(`/movie/${movie.id}`)}
+              >
+                <Card 
+                  className="movie-poster"
+                  sx={{ 
+                    transition: 'transform 0.2s',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <CardMedia
+                    component="img"
+                    image={movie.poster_path || '/placeholder-movie.jpg'}
+                    alt={movie.title}
+                    sx={{ aspectRatio: '2/3' }}
+                  />
+                </Card>
+                <Box mt={1}>
+                  <Typography variant="subtitle2" noWrap>
+                    {movie.title}
+                  </Typography>
+                  <Box display="flex" alignItems="center">
+                    <Rating 
+                      value={(movie.vote_average ?? 0) / 2} 
+                      precision={0.1} 
+                      readOnly 
+                      size="small"
+                    />
+                    <Typography variant="caption" ml={0.5}>
+                      {movie.vote_average?.toFixed(1)}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <Typography color="text.secondary">
+            {!isLoadingSimilar && 'No similar movies available'}
+          </Typography>
+        )}
+      </Box>
+
       <Divider sx={{ my: 4 }} />
       <ReviewsSection 
-        movieId={id || ''} 
-        initialReviews={reviews} 
+        movieId={Number(id)} 
+        reviews={reviews}
       />
     </Box>
   );

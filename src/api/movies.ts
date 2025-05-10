@@ -583,3 +583,39 @@ export const deleteMovieReview = async (
     throw new Error(errorMessage);
   }
 };
+
+export const fetchSimilarMovies = async (movieId: number, page: number = 1): Promise<Movie[]> => {
+  if (!TMDB_API_KEY) {
+    console.warn('TMDB API key not configured - similar movies feature disabled');
+    return [];
+  }
+
+  try {
+    const response = await axios.get(`${TMDB_BASE_URL}/movie/${movieId}/similar`, {
+      params: {
+        api_key: TMDB_API_KEY,
+        language: 'en-US',
+        page,
+        append_to_response: 'credits,videos,images'
+      }
+    });
+
+    // Normalize the similar movies data to match our Movie type
+    return response.data.results.map((movie: any) => normalizeMovieData(movie, 'tmdb'));
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    
+    console.error('Error fetching similar movies:', {
+      movieId,
+      status: axiosError.response?.status,
+      data: axiosError.response?.data,
+      config: axiosError.config
+    });
+
+    throw new Error(
+      axiosError.response?.data?.status_message ||
+      axiosError.message ||
+      'Failed to fetch similar movies'
+    );
+  }
+};
