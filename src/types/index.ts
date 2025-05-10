@@ -51,7 +51,7 @@ export interface Movie extends MediaBase {
   images?: {
     backdrops: Image[];
     posters: Image[];
-    logos: Image[];
+    logos: Image[]; 
   };
 }
 
@@ -221,7 +221,7 @@ export interface ApiErrorResponse {
   message?: string;
   error?: string;
   statusCode?: number;
-  status_message?: string;
+  status_message?: string
 }
 
 /* Authentication Types */
@@ -251,3 +251,31 @@ export interface SignInResponse {
   message: string;
   user: User;
 }
+
+
+export interface MediaItem {
+  id: number;
+  poster_path: string | null;
+  title?: string;
+  name?: string;
+  vote_average: number;
+  overview: string;
+  first_air_date?: string;
+  // Add other media-specific properties as needed
+}
+
+export interface ActorItem {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department: string;
+  known_for?: Array<{
+    title?: string;
+    name?: string;
+  }>;
+  biography?: string;
+  // Add other actor-specific properties as needed
+}
+
+
+export type FavoriteType = 'tv' | 'actor';

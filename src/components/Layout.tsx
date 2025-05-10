@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Box, AppBar, Toolbar, Typography, Button, Container, Stack } from '@mui/material'
 import { Link } from 'react-router-dom'
+import { Favorite } from '@mui/icons-material'
 
 const Layout = () => {
   return (
@@ -22,6 +23,15 @@ const Layout = () => {
             </Button>
             <Button color="inherit" component={Link} to="/tv">
               TV Series
+            </Button>
+            <Button 
+              color="inherit" 
+              component={Link} 
+              to="/favorites"
+              startIcon={<Favorite fontSize="small" />}
+              sx={{ ml: 1 }}
+            >
+              Favorites
             </Button>
             <Button color="inherit" component={Link} to="/fantasy">
               Fantasy Movie

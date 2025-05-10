@@ -9,14 +9,25 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Pagination
+  Pagination,
+  Stack
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import MovieCard from '../components/MovieCard';
 import type { Movie } from '../types';
 
-// Sorting options
+const GENRES = [
+  { id: 'all', name: 'All Genres' },
+  { id: 28, name: 'Action' },
+  { id: 12, name: 'Adventure' },
+  { id: 16, name: 'Animation' },
+  { id: 35, name: 'Comedy' },
+  { id: 18, name: 'Drama' },
+  { id: 878, name: 'Science Fiction' },
+  { id: 10751, name: 'Family' },
+];
+
 const SORT_OPTIONS = [
   { value: 'title-asc', label: 'Title (A-Z)' },
   { value: 'title-desc', label: 'Title (Z-A)' },
@@ -26,96 +37,115 @@ const SORT_OPTIONS = [
   { value: 'release-asc', label: 'Release Date (Oldest First)' },
 ];
 
-// Number of movies to display per page (client-side pagination)
 const MOVIES_PER_PAGE = 8;
 
 export default function PopularMovies() {
   const [backendPage, setBackendPage] = useState(1);
   const [clientPage, setClientPage] = useState(1);
-  const [sortOption, setSortOption] = useState('rating-desc'); // Default sort: highest rating
-  
-  // This query fetches all movies from the API at once
-  const { data: allMovies = [], isLoading, isError, error } = useQuery({
+  const [sortOption, setSortOption] = useState('rating-desc');
+  const [genreFilter, setGenreFilter] = useState<number | 'all'>('all');
+  const [allMovies, setAllMovies] = useState<Movie[]>([]);
+
+  const { data: newMovies = [], isLoading, isError, error } = useQuery({
     queryKey: ['popularMovies', backendPage],
     queryFn: () => fetchPopularMovies(backendPage),
-    placeholderData: (previousData) => previousData,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
+
+  // Accumulate movies as we load more pages
+  useEffect(() => {
+    if (newMovies.length > 0) {
+      setAllMovies(prev => {
+        // Avoid duplicates by checking movie IDs
+        const existingIds = new Set(prev.map(movie => movie.id));
+        const uniqueNewMovies = newMovies.filter(movie => !existingIds.has(movie.id));
+        return [...prev, ...uniqueNewMovies];
+      });
+    }
+  }, [newMovies]);
 
   const handleSortChange = (event: SelectChangeEvent) => {
     setSortOption(event.target.value);
-    setClientPage(1); // Reset to first page when sorting changes
+    setClientPage(1);
   };
 
-  // Sort movies based on the selected option
-  const sortedMovies = useMemo(() => {
-    if (!allMovies || allMovies.length === 0) return [];
-    
-    const moviesCopy = [...allMovies];
-    
+  const handleGenreChange = (event: SelectChangeEvent<number | 'all'>) => {
+    const value = event.target.value === 'all' ? 'all' : Number(event.target.value);
+    setGenreFilter(value);
+    setClientPage(1);
+  };
+
+  // Apply both sorting and filtering at once
+// Updated filtering logic in the processedMovies useMemo
+const processedMovies = useMemo(() => {
+  if (!allMovies || allMovies.length === 0) return [];
+  
+  // Make a copy to avoid mutating the original data
+  let moviesCopy = [...allMovies];
+  
+  // Step 1: Apply genre filter if selected
+  // Genre filtering
+  
+  if (genreFilter !== 'all') {
+    moviesCopy = moviesCopy.filter(movie => {
+      // For BasicMovie type with genre_ids
+      if ('genre_ids' in movie && Array.isArray(movie.genre_ids)) {
+        return movie.genre_ids.includes(genreFilter as number);
+      }
+      // For Movie type with genres array
+      if ('genres' in movie && Array.isArray(movie.genres)) {
+        return movie.genres.some(g => g.id === genreFilter);
+      }
+      return false;
+    });
+  }
+   
+    // Step 2: Apply sorting
     switch (sortOption) {
       case 'title-asc':
         return moviesCopy.sort((a, b) => a.title.localeCompare(b.title));
       case 'title-desc':
         return moviesCopy.sort((a, b) => b.title.localeCompare(a.title));
       case 'rating-desc':
-        return moviesCopy.sort((a, b) => {
-          const ratingA = Number(a.vote_average) || 0;
-          const ratingB = Number(b.vote_average) || 0;
-          return ratingB - ratingA;
-        });
+        return moviesCopy.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
       case 'rating-asc':
-        return moviesCopy.sort((a, b) => {
-          const ratingA = Number(a.vote_average) || 0;
-          const ratingB = Number(b.vote_average) || 0;
-          return ratingA - ratingB;
-        });
+        return moviesCopy.sort((a, b) => (a.vote_average || 0) - (b.vote_average || 0));
       case 'release-desc':
-        return moviesCopy.sort((a, b) => {
-          const dateA = a.release_date ? new Date(a.release_date).getTime() : 0;
-          const dateB = b.release_date ? new Date(b.release_date).getTime() : 0;
-          return dateB - dateA;
-        });
+        return moviesCopy.sort((a, b) => 
+          (new Date(b.release_date || 0).getTime()) - (new Date(a.release_date || 0).getTime()
+        ));
       case 'release-asc':
-        return moviesCopy.sort((a, b) => {
-          const dateA = a.release_date ? new Date(a.release_date).getTime() : 0;
-          const dateB = b.release_date ? new Date(b.release_date).getTime() : 0;
-          return dateA - dateB;
-        });
+        return moviesCopy.sort((a, b) =>
+          (new Date(a.release_date || 0).getTime()) - (new Date(b.release_date || 0).getTime())
+        );
       default:
         return moviesCopy;
     }
-  }, [allMovies, sortOption]);
+  }, [allMovies, genreFilter, sortOption]);
 
-  // Client-side pagination logic
   const paginatedMovies = useMemo(() => {
     const startIndex = (clientPage - 1) * MOVIES_PER_PAGE;
-    return sortedMovies.slice(startIndex, startIndex + MOVIES_PER_PAGE);
-  }, [sortedMovies, clientPage]);
+    return processedMovies.slice(startIndex, startIndex + MOVIES_PER_PAGE);
+  }, [processedMovies, clientPage]);
 
-  // Calculate total pages
-  const totalPages = Math.ceil(sortedMovies.length / MOVIES_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(processedMovies.length / MOVIES_PER_PAGE));
 
-  // Handle page change
   const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
     setClientPage(value);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Load more movies from backend if we're running low
-  const needMoreMovies = useMemo(() => {
-    // If we have fewer than 2 pages worth of movies or 
-    // if we're on the last page, try to fetch more
-    return allMovies.length < MOVIES_PER_PAGE * 2 || 
-           clientPage === totalPages;
-  }, [allMovies.length, clientPage, totalPages]);
-
-  // Effect to fetch more movies if needed
-  useMemo(() => {
-    if (needMoreMovies && !isLoading && !isError) {
+  // Load more data when we're near the end of current data
+  useEffect(() => {
+    if (
+      !isLoading && 
+      processedMovies.length > 0 &&
+      clientPage >= totalPages - 1 &&
+      allMovies.length < 100 // Prevent infinite loading
+    ) {
       setBackendPage(prev => prev + 1);
     }
-  }, [needMoreMovies, isLoading, isError]);
+  }, [clientPage, totalPages, isLoading, processedMovies.length, allMovies.length]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -123,29 +153,51 @@ export default function PopularMovies() {
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        mb: 3
+        mb: 3,
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: 2
       }}>
         <Typography variant="h4">
           Popular Movies
         </Typography>
 
-        {/* Sorting dropdown */}
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel id="sort-select-label">Sort By</InputLabel>
-          <Select
-            labelId="sort-select-label"
-            id="sort-select"
-            value={sortOption}
-            label="Sort By"
-            onChange={handleSortChange}
-          >
-            {SORT_OPTIONS.map(option => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Stack direction="row" spacing={2} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+          {/* Genre filter dropdown */}
+          <FormControl sx={{ minWidth: 200 }} size="small">
+            <InputLabel id="genre-filter-label">Filter by Genre</InputLabel>
+            <Select
+              labelId="genre-filter-label"
+              id="genre-filter"
+              value={genreFilter}
+              label="Filter by Genre"
+              onChange={handleGenreChange}
+            >
+              {GENRES.map((genre) => (
+                <MenuItem key={genre.id} value={genre.id}>
+                  {genre.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Sorting dropdown */}
+          <FormControl sx={{ minWidth: 200 }} size="small">
+            <InputLabel id="sort-select-label">Sort By</InputLabel>
+            <Select
+              labelId="sort-select-label"
+              id="sort-select"
+              value={sortOption}
+              label="Sort By"
+              onChange={handleSortChange}
+            >
+              {SORT_OPTIONS.map(option => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
       </Box>
 
       {isLoading && allMovies.length === 0 && (
@@ -160,53 +212,57 @@ export default function PopularMovies() {
         </Alert>
       )}
 
-      {paginatedMovies && paginatedMovies.length > 0 ? (
-        <>
-          <Box sx={{ 
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-              lg: 'repeat(4, 1fr)'
-            },
-            gap: 3,
-            mb: 4
-          }}>
-            {paginatedMovies.map((movie: Movie) => (
-              <MovieCard key={movie.id} movie={movie} />
-            ))}
-          </Box>
-
-          {/* Pagination controls */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
-            <Pagination 
-              count={totalPages} 
-              page={clientPage}
-              onChange={handlePageChange}
-              color="primary"
-              size="large"
-              showFirstButton
-              showLastButton
-            />
-          </Box>
-          
-          {/* Loading indicator for fetching more movies */}
-          {isLoading && allMovies.length > 0 && (
-            <Box display="flex" justifyContent="center" mt={2}>
-              <CircularProgress size={24} />
-              <Typography variant="body2" sx={{ ml: 1 }}>
-                Loading more movies...
+      <Box sx={{ 
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          md: 'repeat(3, 1fr)',
+          lg: 'repeat(4, 1fr)'
+        },
+        gap: 3,
+        mb: 4
+      }}>
+        {paginatedMovies.length > 0 ? (
+          paginatedMovies.map((movie: Movie) => (
+            <MovieCard key={movie.id} movie={movie} />
+          ))
+        ) : (
+          !isLoading && (
+            <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
+              <Typography variant="h6">
+                {genreFilter === 'all' 
+                  ? 'No movies available' 
+                  : `No movies found for this genre. Try a different filter.`}
               </Typography>
             </Box>
-          )}
-        </>
-      ) : (
-        !isLoading && !isError && (
-          <Typography variant="h6" align="center">
-            No movies found
+          )
+        )}
+      </Box>
+
+      {/* Pagination controls - only show if we have more than one page */}
+      {totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+          <Pagination 
+            count={totalPages} 
+            page={clientPage}
+            onChange={handlePageChange}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
+      
+      {/* Loading indicator for fetching more movies */}
+      {isLoading && allMovies.length > 0 && (
+        <Box display="flex" justifyContent="center" mt={2}>
+          <CircularProgress size={24} />
+          <Typography variant="body2" sx={{ ml: 1 }}>
+            Loading more movies...
           </Typography>
-        )
+        </Box>
       )}
     </Box>
   );

@@ -13,6 +13,7 @@ import SignIn from '../pages/SignIn';
 import SignUp from '../pages/SignUp';
 import SimilarMovies from '../pages/SimilarMovies';
 import PrivateRoute from '../components/PrivateRoutes';
+import Favorites from '../pages/Favorites'; // Import the new Favorites component
 
 const router = createBrowserRouter([
   {
@@ -23,6 +24,14 @@ const router = createBrowserRouter([
       { path: 'popular', element: <PopularMovies /> },
       { path: 'actors', element: <PopularActors /> },
       { path: 'tv', element: <PopularTVSeries /> },
+      { 
+        path: 'favorites', 
+        element: (
+          <PrivateRoute>
+            <Favorites />
+          </PrivateRoute>
+        )
+      },
       { 
         path: 'fantasy', 
         element: (
