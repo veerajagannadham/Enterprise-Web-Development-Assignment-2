@@ -121,26 +121,7 @@ export default function ReviewSection({
     }
   };
 
-  const handleDeleteReview = async (reviewId: number) => {
-    if (!window.confirm('Are you sure you want to delete this review?')) {
-      return;
-    }
 
-    try {
-      setIsDeleting(reviewId);
-      setError(null);
-
-      await deleteMovieReview(movieId, reviewId);
-
-      setSuccess('Review deleted successfully!');
-      setLocalReviews(prev => prev.filter(review => review.id !== reviewId));
-    } catch (err) {
-      const error = err as Error;
-      setError(error.message || 'Failed to delete review');
-    } finally {
-      setIsDeleting(null);
-    }
-  };
 
   return (
     <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
@@ -224,18 +205,6 @@ export default function ReviewSection({
                               sx={{ mr: 1 }}
                             >
                               <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              aria-label="delete"
-                              onClick={() => handleDeleteReview(review.id)}
-                              size="small"
-                              disabled={isDeleting === review.id}
-                            >
-                              {isDeleting === review.id ? (
-                                <CircularProgress size={20} />
-                              ) : (
-                                <DeleteIcon fontSize="small" />
-                              )}
                             </IconButton>
                           </Box>
                         </Box>

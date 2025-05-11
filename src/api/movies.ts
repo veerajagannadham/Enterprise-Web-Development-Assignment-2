@@ -303,61 +303,7 @@ export const getTranslatedReview = async (
   }
 };
 
-export const createFantasyMovie = async (input: FantasyMovieInput): Promise<FantasyMovie> => {
-  try {
-    if (!input.title || !input.overview || !input.genres || !input.releaseDate) {
-      throw new Error('Missing required fields.');
-    }
-    if (!isValidDateString(input.releaseDate)) {
-      throw new Error('Invalid date format.');
-    }
 
-    const payload = {
-      title: input.title,
-      overview: input.overview,
-      genres: input.genres,
-      releaseDate: input.releaseDate,
-      productionCompanies: input.productionCompanies || [],
-      runtime: input.runtime ? Number(input.runtime) : undefined
-    };
-
-    const response = await axios.post<{ message: string; movieId: string }>(
-      `${API_BASE_URL}/fantasy/movies`,
-      payload,
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    return {
-      id: Number(response.data.movieId),
-      title: input.title,
-      overview: input.overview,
-      poster_path: null,
-      backdrop_path: null,
-      vote_average: 0,
-      vote_count: 0,
-      popularity: 0,
-      genres: input.genres.map((name, i) => ({ id: i + 1, name })),
-      release_date: input.releaseDate,
-      production_companies: input.productionCompanies?.map((name, i) => ({
-        id: i + 1,
-        name,
-        logo_path: null,
-        origin_country: 'unknown'
-      })) || [],
-      runtime: input.runtime || undefined,
-      isFantasy: true,
-      created_at: new Date().toISOString()
-    };
-  } catch (error) {
-    const axiosError = error as AxiosError<{ message?: string; error?: string }>;
-    throw new Error(
-      axiosError.response?.data?.message ||
-      axiosError.response?.data?.error ||
-      axiosError.message ||
-      'Failed to create fantasy movie.'
-    );
-  }
-};
 
 export const deleteMovieReview = async (
   movieId: number,
@@ -421,54 +367,3 @@ export const fetchSimilarMovies = async (movieId: number, page = 1): Promise<Mov
   }
 };
 
-/**
- * Upload a poster image for a movie.
- * @param movieId - ID of the movie.
- * @param file - Poster image file.
- */
-export const uploadMoviePoster = async (movieId: number, file: File): Promise<{ message: string }> => {
-  const formData = new FormData();
-  formData.append('movieId', movieId.toString());
-  formData.append('poster', file);
-
-  try {
-    const response = await axios.post(`${API_BASE_URL}/upload/poster`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    return response.data;
-  } catch (error) {
-    const axiosError = error as AxiosError<ApiErrorResponse>;
-    throw new Error(
-      axiosError.response?.data?.message ||
-      axiosError.response?.data?.error ||
-      axiosError.message ||
-      'Failed to upload poster.'
-    );
-  }
-};
-
-/**
- * Upload cast details for a movie.
- * @param movieId - ID of the movie.
- * @param castJsonFile - JSON file containing cast array.
- */
-export const uploadMovieCast = async (movieId: number, castJsonFile: File): Promise<{ message: string }> => {
-  const formData = new FormData();
-  formData.append('movieId', movieId.toString());
-  formData.append('cast', castJsonFile);
-
-  try {
-    const response = await axios.post(`${API_BASE_URL}/upload/cast`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    return response.data;
-  } catch (error) {
-    const axiosError = error as AxiosError<ApiErrorResponse>;
-    throw new Error(
-      axiosError.response?.data?.message ||
-      axiosError.response?.data?.error ||
-      axiosError.message ||
-      'Failed to upload cast.'
-    );
-  }
-};
