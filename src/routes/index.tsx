@@ -1,4 +1,3 @@
-// src/router.tsx
 import { createBrowserRouter } from 'react-router-dom';
 import Home from '../pages/Home';
 import PopularMovies from '../pages/PopularMovies';
@@ -13,7 +12,8 @@ import SignIn from '../pages/SignIn';
 import SignUp from '../pages/SignUp';
 import SimilarMovies from '../pages/SimilarMovies';
 import PrivateRoute from '../components/PrivateRoutes';
-import Favorites from '../pages/Favorites'; // Import the new Favorites component
+import Favorites from '../pages/Favorites';
+
 
 const router = createBrowserRouter([
   {
@@ -39,6 +39,14 @@ const router = createBrowserRouter([
             <FantasyMovieForm />
           </PrivateRoute>
         ) 
+      },
+      {
+        path: 'upload',
+        element: (
+          <PrivateRoute>
+            <CreateCastAndUploadPoster />
+          </PrivateRoute>
+        )
       },
       { path: 'movie/:id', element: <MovieDetails /> },
       { path: 'similar/:movieId', element: <SimilarMovies /> },

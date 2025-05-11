@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Box,
@@ -18,17 +18,22 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    IconButton,
     TextField,
     Pagination,
     CardActions,
+    MenuItem,
+    Select,
+    FormControl,
+    InputLabel,
     styled
 } from '@mui/material';
-import { Favorite, Star, Movie, Person, Add, Search } from '@mui/icons-material';
-import type { MediaItem, ActorItem } from '../types';
+import { Favorite, Star, Movie as MovieIcon, Person, Add, Search, Sort, FilterAlt } from '@mui/icons-material';
+import type { TVSeries, Actor, MediaItem, ActorItem } from '../types';
 import { getTVDetails, getPersonDetails, fetchPopularTVShows, fetchPopularActors } from '../api/favorites';
 
 type FavoriteType = 'tv' | 'actor';
+type SortOption = 'name-asc' | 'name-desc' | 'rating-asc' | 'rating-desc' | 'date-asc' | 'date-desc';
+type FilterOption = 'all' | 'recent' | 'high-rated';
 
 const ItemsContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -50,25 +55,85 @@ const ItemCard = styled(Card)({
 const FavoritesPage = () => {
     const [activeTab, setActiveTab] = useState<FavoriteType>('tv');
     const [favorites, setFavorites] = useState<{
-        tv: MediaItem[];
-        actor: ActorItem[];
+        tv: (TVSeries & MediaItem)[];
+        actor: (Actor & ActorItem)[];
     }>({ tv: [], actor: [] });
     const [loading, setLoading] = useState(true);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
-    const [suggestedItems, setSuggestedItems] = useState<(MediaItem | ActorItem)[]>([]);
+    const [suggestedItems, setSuggestedItems] = useState<(TVSeries | Actor)[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [sortOption, setSortOption] = useState<SortOption>('name-asc');
+    const [filterOption, setFilterOption] = useState<FilterOption>('all');
     const navigate = useNavigate();
 
-    // Load favorites on mount
+    const sortedAndFilteredFavorites = useMemo(() => {
+        const items = favorites[activeTab];
+        
+        // Apply filtering
+        let filteredItems = [...items];
+        if (activeTab === 'tv') {
+            if (filterOption === 'recent') {
+                filteredItems = filteredItems.filter(item => 
+                    item.first_air_date && 
+                    new Date(item.first_air_date) > new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+                );
+            } else if (filterOption === 'high-rated') {
+                filteredItems = filteredItems.filter(item => 
+                    item.vote_average >= 7.5
+                );
+            }
+        } else {
+            if (filterOption === 'recent') {
+                filteredItems = filteredItems.filter(item => 
+                    item.popularity && item.popularity > 50
+                );
+            } else if (filterOption === 'high-rated') {
+                filteredItems = filteredItems.filter(item => 
+                    item.popularity && item.popularity > 75
+                );
+            }
+        }
+
+        // Apply sorting
+        return filteredItems.sort((a, b) => {
+            const getSortName = (item: (TVSeries & MediaItem) | (Actor & ActorItem)): string => {
+                if ('name' in item) return item.name;
+                return '';
+            };
+
+            const nameA = getSortName(a);
+            const nameB = getSortName(b);
+
+            switch (sortOption) {
+                case 'name-asc': return nameA.localeCompare(nameB);
+                case 'name-desc': return nameB.localeCompare(nameA);
+                case 'rating-asc': 
+                    return (a.vote_average || 0) - (b.vote_average || 0);
+                case 'rating-desc': 
+                    return (b.vote_average || 0) - (a.vote_average || 0);
+                case 'date-asc':
+                    if ('first_air_date' in a && 'first_air_date' in b) {
+                        return new Date(a.first_air_date || '').getTime() - new Date(b.first_air_date || '').getTime();
+                    }
+                    return 0;
+                case 'date-desc':
+                    if ('first_air_date' in a && 'first_air_date' in b) {
+                        return new Date(b.first_air_date || '').getTime() - new Date(a.first_air_date || '').getTime();
+                    }
+                    return 0;
+                default: return 0;
+            }
+        });
+    }, [favorites, activeTab, sortOption, filterOption]);
+
     useEffect(() => {
         const loadFavorites = async () => {
             try {
-                // Demo data for first-time users (remove in production)
                 if (import.meta.env.DEV || !localStorage.getItem('hasSeenDemo')) {
-                    const demoTVIds = [1399, 60574, 66732]; // Game of Thrones, Lucifer, Stranger Things
-                    const demoActorIds = [1245, 976, 1136406]; // Tom Hanks, Jason Statham, Tom Holland
+                    const demoTVIds = [1399, 60574, 66732];
+                    const demoActorIds = [1245, 976, 1136406];
 
                     if (getLocalFavorites('tv').length === 0) {
                         saveLocalFavorites('tv', demoTVIds);
@@ -87,8 +152,8 @@ const FavoritesPage = () => {
                 ]);
 
                 setFavorites({
-                    tv: tvShows.filter(show => show),
-                    actor: actors.filter(actor => actor)
+                    tv: tvShows.filter((show): show is TVSeries & MediaItem => show !== null),
+                    actor: actors.filter((actor): actor is Actor & ActorItem => actor !== null)
                 });
             } catch (error) {
                 console.error('Error loading favorites:', error);
@@ -116,7 +181,7 @@ const FavoritesPage = () => {
 
     const fetchSuggestions = async () => {
         try {
-            let data;
+            let data: (TVSeries | Actor)[];
             if (activeTab === 'tv') {
                 const response = await fetchPopularTVShows(page);
                 data = response;
@@ -137,7 +202,7 @@ const FavoritesPage = () => {
         fetchSuggestions();
     };
 
-    const handlePageChange = (event: React.ChangeEvent<unknown>, newPage: number) => {
+    const handlePageChange = (_event: React.ChangeEvent<unknown>, newPage: number) => {
         setPage(newPage);
     };
 
@@ -147,7 +212,7 @@ const FavoritesPage = () => {
         }
     }, [page, activeTab, quickAddOpen]);
 
-    const addToFavorites = (item: MediaItem | ActorItem) => {
+    const addToFavorites = (item: TVSeries | Actor) => {
         const type = activeTab;
         const currentFavorites = getLocalFavorites(type);
 
@@ -155,17 +220,17 @@ const FavoritesPage = () => {
             const updated = [...currentFavorites, item.id];
             saveLocalFavorites(type, updated);
 
-            // Update local state
-            if (type === 'tv') {
-                setFavorites(prev => ({ ...prev, tv: [...prev.tv, item as MediaItem] }));
-            } else {
-                setFavorites(prev => ({ ...prev, actor: [...prev.actor, item as ActorItem] }));
-            }
+            setFavorites(prev => ({
+                ...prev,
+                [type]: [...prev[type], item]
+            }));
         }
     };
 
-    const currentItems = favorites[activeTab];
-    const isEmpty = currentItems.length === 0;
+    const isEmpty = sortedAndFilteredFavorites.length === 0;
+    const displayedItems = sortedAndFilteredFavorites.filter(item => 
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
         <Box sx={{ p: 3, maxWidth: '1400px', mx: 'auto' }}>
@@ -180,17 +245,13 @@ const FavoritesPage = () => {
             </Typography>
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Tabs
-                    value={activeTab}
-                    onChange={(e, newValue) => setActiveTab(newValue)}
-                    sx={{ flexGrow: 1 }}
-                >
+                <Tabs value={activeTab} onChange={(_e, newValue) => setActiveTab(newValue)} sx={{ flexGrow: 1 }}>
                     <Tab
                         value="tv"
                         label={
                             <Badge badgeContent={favorites.tv.length} color="primary" showZero>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Movie /> TV Shows
+                                    <MovieIcon /> TV Shows
                                 </Box>
                             </Badge>
                         }
@@ -219,6 +280,48 @@ const FavoritesPage = () => {
                 </Button>
             </Box>
 
+            <Box sx={{ display: 'flex', gap: 2, mb: 4, alignItems: 'center' }}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel><Sort sx={{ fontSize: 16, mr: 1 }} /> Sort</InputLabel>
+                    <Select
+                        value={sortOption}
+                        onChange={(e) => setSortOption(e.target.value as SortOption)}
+                        label="Sort"
+                    >
+                        <MenuItem value="name-asc">Name (A-Z)</MenuItem>
+                        <MenuItem value="name-desc">Name (Z-A)</MenuItem>
+                        <MenuItem value="rating-asc">Rating (Low-High)</MenuItem>
+                        <MenuItem value="rating-desc">Rating (High-Low)</MenuItem>
+                        {activeTab === 'tv' && <MenuItem value="date-asc">Date (Old-New)</MenuItem>}
+                        {activeTab === 'tv' && <MenuItem value="date-desc">Date (New-Old)</MenuItem>}
+                    </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel><FilterAlt sx={{ fontSize: 16, mr: 1 }} /> Filter</InputLabel>
+                    <Select
+                        value={filterOption}
+                        onChange={(e) => setFilterOption(e.target.value as FilterOption)}
+                        label="Filter"
+                    >
+                        <MenuItem value="all">All</MenuItem>
+                        <MenuItem value="recent">Recent</MenuItem>
+                        <MenuItem value="high-rated">High Rated</MenuItem>
+                    </Select>
+                </FormControl>
+
+                <TextField
+                    size="small"
+                    placeholder={`Search ${activeTab === 'tv' ? 'TV shows' : 'actors'}...`}
+                    sx={{ ml: 'auto', width: 250 }}
+                    InputProps={{
+                        startAdornment: <Search sx={{ mr: 1, color: 'action.active' }} />
+                    }}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </Box>
+
             <Divider sx={{ mb: 4 }} />
 
             {loading ? (
@@ -244,22 +347,22 @@ const FavoritesPage = () => {
                 }}>
                     {activeTab === 'tv' ? (
                         <>
-                            <Movie sx={{ fontSize: 80, color: 'text.disabled', mb: 2 }} />
+                            <MovieIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2 }} />
                             <Typography variant="h5" color="text.secondary">
-                                No favorite TV shows yet
+                                No favorite TV shows found
                             </Typography>
                             <Typography variant="body1" color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-                                Add some TV shows to see them here
+                                {filterOption !== 'all' ? 'Try changing your filters' : 'Add some TV shows to see them here'}
                             </Typography>
                         </>
                     ) : (
                         <>
                             <Person sx={{ fontSize: 80, color: 'text.disabled', mb: 2 }} />
                             <Typography variant="h5" color="text.secondary">
-                                No favorite actors yet
+                                No favorite actors found
                             </Typography>
                             <Typography variant="body1" color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-                                Add some actors to see them here
+                                {filterOption !== 'all' ? 'Try changing your filters' : 'Add some actors to see them here'}
                             </Typography>
                         </>
                     )}
@@ -271,104 +374,101 @@ const FavoritesPage = () => {
                         Add Popular {activeTab === 'tv' ? 'TV Shows' : 'Actors'}
                     </Button>
                 </Box>
-            ) : activeTab === 'tv' ? (
-                <ItemsContainer>
-                    {favorites.tv.map((show) => (
-                        <ItemCard key={show.id}>
-                            <CardMedia
-                                component="img"
-                                height="300"
-                                image={
-                                    show.poster_path
-                                        ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
-                                        : '/placeholder-tv.png'
-                                }
-                                alt={show.name}
-                                onClick={() => navigate(`/tv/${show.id}`)}
-                                sx={{ cursor: 'pointer', objectFit: 'cover' }}
-                            />
-                            <CardContent sx={{ flexGrow: 1 }}>
-                                <Typography gutterBottom variant="h6" component="div">
-                                    {show.name}
-                                </Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                    <Star color="warning" />
-                                    <Typography variant="body2">
-                                        {show.vote_average.toFixed(1)}
-                                    </Typography>
-                                    {show.first_air_date && (
-                                        <Typography variant="body2" sx={{ ml: 'auto' }}>
-                                            {new Date(show.first_air_date).getFullYear()}
-                                        </Typography>
-                                    )}
-                                </Box>
-                            </CardContent>
-                            <Box sx={{ p: 2 }}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    color="error"
-                                    size="small"
-                                    startIcon={<Favorite />}
-                                    onClick={() => handleRemoveFavorite(show.id, 'tv')}
-                                >
-                                    Remove
-                                </Button>
-                            </Box>
-                        </ItemCard>
-                    ))}
-                </ItemsContainer>
             ) : (
                 <ItemsContainer>
-                    {favorites.actor.map((actor) => (
-                        <ItemCard key={actor.id}>
-                            <Box sx={{ display: 'flex', justifyContent: 'center', pt: 3 }}>
-                                <Avatar
-                                    src={
-                                        actor.profile_path
-                                            ? `https://image.tmdb.org/t/p/w500${actor.profile_path}`
-                                            : '/actor-placeholder.png'
+                    {displayedItems.map((item) => (
+                        activeTab === 'tv' ? (
+                            <ItemCard key={item.id}>
+                                <CardMedia
+                                    component="img"
+                                    height="300"
+                                    image={
+                                        item.poster_path
+                                            ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                                            : '/placeholder-tv.png'
                                     }
-                                    alt={actor.name}
-                                    sx={{
-                                        width: 150,
-                                        height: 150,
-                                        cursor: 'pointer',
-                                        border: '3px solid',
-                                        borderColor: 'primary.main'
-                                    }}
-                                    onClick={() => navigate(`/person/${actor.id}`)}
+                                    alt={item.name}
+                                    onClick={() => navigate(`/tv/${item.id}`)}
+                                    sx={{ cursor: 'pointer', objectFit: 'cover' }}
                                 />
-                            </Box>
-                            <CardContent sx={{ textAlign: 'center' }}>
-                                <Typography gutterBottom variant="h6" component="div">
-                                    {actor.name}
-                                </Typography>
-                                <Chip
-                                    label={actor.known_for_department}
-                                    size="small"
-                                    color="primary"
-                                    sx={{ mb: 1 }}
-                                />
-                            </CardContent>
-                            <Box sx={{ p: 2 }}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    color="error"
-                                    size="small"
-                                    startIcon={<Favorite />}
-                                    onClick={() => handleRemoveFavorite(actor.id, 'actor')}
-                                >
-                                    Remove
-                                </Button>
-                            </Box>
-                        </ItemCard>
+                                <CardContent sx={{ flexGrow: 1 }}>
+                                    <Typography gutterBottom variant="h6" component="div">
+                                        {item.name}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                        <Star color="warning" />
+                                        <Typography variant="body2">
+                                            {item.vote_average.toFixed(1)}
+                                        </Typography>
+                                        {item.first_air_date && (
+                                            <Typography variant="body2" sx={{ ml: 'auto' }}>
+                                                {new Date(item.first_air_date).getFullYear()}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                </CardContent>
+                                <Box sx={{ p: 2 }}>
+                                    <Button
+                                        fullWidth
+                                        variant="outlined"
+                                        color="error"
+                                        size="small"
+                                        startIcon={<Favorite />}
+                                        onClick={() => handleRemoveFavorite(item.id, 'tv')}
+                                    >
+                                        Remove
+                                    </Button>
+                                </Box>
+                            </ItemCard>
+                        ) : (
+                            <ItemCard key={item.id}>
+                                <Box sx={{ display: 'flex', justifyContent: 'center', pt: 3 }}>
+                                    <Avatar
+                                        src={
+                                            item.profile_path
+                                                ? `https://image.tmdb.org/t/p/w500${item.profile_path}`
+                                                : '/actor-placeholder.png'
+                                        }
+                                        alt={item.name}
+                                        sx={{
+                                            width: 150,
+                                            height: 150,
+                                            cursor: 'pointer',
+                                            border: '3px solid',
+                                            borderColor: 'primary.main'
+                                        }}
+                                        onClick={() => navigate(`/person/${item.id}`)}
+                                    />
+                                </Box>
+                                <CardContent sx={{ textAlign: 'center' }}>
+                                    <Typography gutterBottom variant="h6" component="div">
+                                        {item.name}
+                                    </Typography>
+                                    <Chip
+                                        label={item.known_for_department || 'Actor'}
+                                        size="small"
+                                        color="primary"
+                                        sx={{ mb: 1 }}
+                                    />
+                                </CardContent>
+                                <Box sx={{ p: 2 }}>
+                                    <Button
+                                        fullWidth
+                                        variant="outlined"
+                                        color="error"
+                                        size="small"
+                                        startIcon={<Favorite />}
+                                        onClick={() => handleRemoveFavorite(item.id, 'actor')}
+                                    >
+                                        Remove
+                                    </Button>
+                                </Box>
+                            </ItemCard>
+                        )
                     ))}
                 </ItemsContainer>
             )}
 
-            {/* Quick Add Dialog */}
             <Dialog
                 open={quickAddOpen}
                 onClose={() => setQuickAddOpen(false)}
@@ -397,7 +497,6 @@ const FavoritesPage = () => {
                         pt: 2,
                         justifyContent: 'center'
                     }}>
-// Update the Quick Add dialog section in your Favorites.tsx
                         {suggestedItems.map(item => (
                             <Card key={item.id} sx={{ width: 175 }}>
                                 {activeTab === 'tv' ? (
@@ -406,22 +505,22 @@ const FavoritesPage = () => {
                                             component="img"
                                             height="250"
                                             image={
-                                                'poster_path' in item && item.poster_path
+                                                item.poster_path
                                                     ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
                                                     : '/placeholder-tv.png'
                                             }
-                                            alt={'name' in item ? item.name : item.title || ''}
+                                            alt={('name' in item) ? item.name : 'Unknown'}
                                             sx={{ cursor: 'pointer' }}
                                             onClick={() => navigate(`/tv/${item.id}`)}
                                         />
                                         <CardContent>
                                             <Typography variant="body2" noWrap textAlign="center">
-                                                {'name' in item ? item.name : item.title || ''}
+                                                {('name' in item) ? item.name : 'Unknown'}
                                             </Typography>
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
                                                 <Star color="warning" fontSize="small" />
                                                 <Typography variant="caption" sx={{ ml: 0.5 }}>
-                                                    {'vote_average' in item ? item.vote_average.toFixed(1) : 'N/A'}
+                                                    {item.vote_average?.toFixed(1) || 'N/A'}
                                                 </Typography>
                                             </Box>
                                         </CardContent>
@@ -431,7 +530,7 @@ const FavoritesPage = () => {
                                         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2 }}>
                                             <Avatar
                                                 src={
-                                                    'profile_path' in item && item.profile_path
+                                                    item.profile_path
                                                         ? `https://image.tmdb.org/t/p/w500${item.profile_path}`
                                                         : '/actor-placeholder.png'
                                                 }
@@ -444,7 +543,7 @@ const FavoritesPage = () => {
                                                 {item.name}
                                             </Typography>
                                             <Chip
-                                                label={'known_for_department' in item ? item.known_for_department : 'Actor'}
+                                                label={item.known_for_department || 'Actor'}
                                                 size="small"
                                                 sx={{ mt: 1 }}
                                             />

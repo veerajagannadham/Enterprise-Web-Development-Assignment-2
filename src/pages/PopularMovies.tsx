@@ -103,11 +103,6 @@ export default function PopularMovies() {
       );
     }
 
-    if (filters.genre !== 'all') {
-      moviesCopy = moviesCopy.filter(movie =>
-        movie.genre_ids.includes(filters.genre as number)
-      );
-    }
 
     if (filters.year) {
       moviesCopy = moviesCopy.filter(movie =>

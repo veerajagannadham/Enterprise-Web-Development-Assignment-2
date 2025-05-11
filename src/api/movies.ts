@@ -1,15 +1,15 @@
-import axios, {AxiosError} from 'axios';
-import type { 
-  Movie, 
-  Genre, 
-  ProductionCompany, 
-  CreateReviewInput, 
-  Review, 
-  CreateReviewResponse, 
-  FantasyMovie, 
-  FantasyMovieInput, 
-  UpdateReviewInput, 
-  UpdateReviewResponse, 
+import axios, { AxiosError } from 'axios';
+import type {
+  Movie,
+  Genre,
+  ProductionCompany,
+  CreateReviewInput,
+  Review,
+  CreateReviewResponse,
+  FantasyMovie,
+  FantasyMovieInput,
+  UpdateReviewInput,
+  UpdateReviewResponse,
   ApiErrorResponse,
   SignUpInput,
   SignUpResponse,
@@ -18,7 +18,6 @@ import type {
 } from '../types';
 
 const API_BASE_URL = 'https://vb9rdedn26.execute-api.us-east-1.amazonaws.com/prod';
-// Removed API_KEY since it's not needed
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
@@ -26,24 +25,21 @@ const isValidDateString = (dateStr: string): dateStr is `${number}-${number}-${n
   return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
 };
 
-
-// Helper function to normalize movie data from different sources
 const normalizeMovieData = (data: any, source: 'api' | 'tmdb' = 'api'): Movie => {
-  // Common normalization for both sources
   const baseMovie = {
     id: data.id || undefined,
     title: data.title || data.original_title || 'Unknown Title',
     overview: data.overview || 'No overview available.',
-    poster_path: data.poster_path 
-      ? (data.poster_path.startsWith('http') 
-          ? data.poster_path 
-          : `https://image.tmdb.org/t/p/w500${data.poster_path}`)
+    poster_path: data.poster_path
+      ? (data.poster_path.startsWith('http')
+        ? data.poster_path
+        : `https://image.tmdb.org/t/p/w500${data.poster_path}`)
       : null,
     vote_average: data.vote_average ?? 0,
-    backdrop_path: data.backdrop_path 
-      ? (data.backdrop_path.startsWith('http') 
-          ? data.backdrop_path 
-          : `https://image.tmdb.org/t/p/original${data.backdrop_path}`)
+    backdrop_path: data.backdrop_path
+      ? (data.backdrop_path.startsWith('http')
+        ? data.backdrop_path
+        : `https://image.tmdb.org/t/p/original${data.backdrop_path}`)
       : null,
     vote_count: data.vote_count ?? 0,
     popularity: data.popularity ?? 0,
@@ -54,7 +50,6 @@ const normalizeMovieData = (data: any, source: 'api' | 'tmdb' = 'api'): Movie =>
     adult: data.adult ?? false,
   };
 
-  // Source-specific normalization
   if (source === 'api') {
     return {
       ...baseMovie,
@@ -71,7 +66,7 @@ const normalizeMovieData = (data: any, source: 'api' | 'tmdb' = 'api'): Movie =>
       images: data.images || { backdrops: [], posters: [], logos: [] },
       reviews: data.reviews || []
     };
-  } else { // TMDB
+  } else {
     return {
       ...baseMovie,
       genres: data.genres || [],
@@ -89,7 +84,6 @@ const normalizeMovieData = (data: any, source: 'api' | 'tmdb' = 'api'): Movie =>
   }
 };
 
-// Fallback to TMDB API if primary API fails
 const fetchFromTMDB = async (id: number): Promise<Movie> => {
   if (!TMDB_API_KEY) {
     throw new Error('TMDB API key not configured');
@@ -111,78 +105,27 @@ const fetchFromTMDB = async (id: number): Promise<Movie> => {
 
 export const fetchMovieDetails = async (id: number): Promise<Movie> => {
   try {
-    // Attempt primary API first
     const response = await axios.get(`${API_BASE_URL}/movies/${id}`);
-    
-    // Handle different response structures
     let movieData = response.data;
-    if (movieData.movie) {
-      movieData = movieData.movie;
-    }
-    if (movieData.results && movieData.results.length > 0) {
-      movieData = movieData.results[0];
-    }
-
-    // Validate we got at least some basic movie data
+    if (movieData.movie) movieData = movieData.movie;
+    if (movieData.results?.length > 0) movieData = movieData.results[0];
     if (!movieData || (!movieData.id && !movieData.title)) {
       throw new Error('Invalid movie data structure from primary API');
     }
-
-    // Normalize and return the data
     return normalizeMovieData(movieData);
   } catch (primaryError) {
     console.error(`Primary API failed for movie ${id}:`, primaryError);
-    
-    // Attempt TMDB fallback
     try {
-      console.log('Attempting TMDB fallback...');
-      const tmdbMovie = await fetchFromTMDB(id);
-      return tmdbMovie;
-    } catch (fallbackError) {
-      console.error(`All data sources failed for movie ${id}`);
-      
-      // Return a minimal valid movie object to prevent crashes
+      return await fetchFromTMDB(id);
+    } catch {
       return normalizeMovieData({});
     }
   }
 };
 
-// Utility to merge your reviews with TMDB ones (if key is set)
-const getMergedReviews = async (id: number, existingReviews: Review[]): Promise<Review[]> => {
-  if (!TMDB_API_KEY) return existingReviews;
-
-  try {
-    const tmdbResponse = await axios.get(`${TMDB_BASE_URL}/movie/${id}/reviews`, {
-      params: {
-        api_key: TMDB_API_KEY,
-        language: 'en-US',
-        page: 1
-      }
-    });
-
-    const tmdbReviews: Review[] = tmdbResponse.data.results.map((r: any) => ({
-      id: r.id,
-      MovieId: id,
-      author: r.author,
-      content: r.content,
-      rating: r.author_details?.rating ?? 0,
-      created_at: r.created_at
-    }));
-
-    // Combine and return
-    return [...existingReviews, ...tmdbReviews];
-  } catch (err) {
-    console.error(`Error fetching TMDB reviews for movie ${id}:`, err);
-    return existingReviews;
-  }
-};
-
 export const fetchAllMovies = async (page: number = 1): Promise<Movie[]> => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/movies`, {
-      params: { page }
-    });
-
+    const response = await axios.get(`${API_BASE_URL}/movies`, { params: { page } });
     const results = Array.isArray(response.data)
       ? response.data
       : response.data?.results || [];
@@ -207,10 +150,7 @@ export const fetchAllMovies = async (page: number = 1): Promise<Movie[]> => {
 
 export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/movies`, {
-      params: { page }
-    });
-
+    const response = await axios.get(`${API_BASE_URL}/movies`, { params: { page } });
     const results = Array.isArray(response.data)
       ? response.data
       : response.data?.results || [];
@@ -233,121 +173,73 @@ export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => 
   }
 };
 
-// User Authentication Functions
+// //Storybook Support
+// export const fetchPopularMovies = async (page = 1) => {
+//   const { movies } = await import('../data/movies');
+//   return movies.slice((page - 1) * 8, page * 8); // simulate pagination
+// };
+
+
 export const signUp = async (userData: SignUpInput): Promise<SignUpResponse> => {
   try {
     const response = await axios.post<SignUpResponse>(
       `${API_BASE_URL}/auth/signup`,
       userData,
       {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        timeout: 8000 // 8 second timeout
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 8000
       }
     );
-
-    if (response.status >= 400) {
-      throw new Error(response.data?.message || 'Registration failed');
-    }
-
+    if (response.status >= 400) throw new Error(response.data?.message || 'Registration failed');
     return response.data;
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>;
-    
-    let errorMessage = 'Failed to create account. Please try again later.';
-    
+    let message = 'Failed to create account.';
     if (axiosError.response) {
-      // Try to parse the error response
-      try {
-        const data = axiosError.response.data;
-        errorMessage = data.message || data.error || errorMessage;
-      } catch (e) {
-        console.error('Error parsing error response:', e);
-      }
+      message = axiosError.response.data.message || axiosError.response.data.error || message;
     } else if (axiosError.code === 'ECONNABORTED') {
-      errorMessage = 'Request timeout. Please try again.';
+      message = 'Request timeout.';
     }
-    
-    throw new Error(errorMessage);
+    throw new Error(message);
   }
 };
 
 export const signIn = async (credentials: SignInInput): Promise<SignInResponse> => {
   try {
-    // Validate required fields
-    if (!credentials.email || !credentials.password) {
-      throw new Error('Email and password are required');
-    }
-
     const response = await axios.post<SignInResponse>(
       `${API_BASE_URL}/auth/signin`,
       credentials,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
-
-    // Store user information in local storage or state management
-    if (response.data.user) {
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-    }
-
+    if (response.data.user) localStorage.setItem('user', JSON.stringify(response.data.user));
     return response.data;
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>;
-    
-    console.error('SignIn Error:', {
-      status: axiosError.response?.status,
-      data: axiosError.response?.data
-    });
-
-    // Handle specific error codes
-    if (axiosError.response?.status === 401) {
-      throw new Error('Invalid email or password');
-    }
-    
-    if (axiosError.response?.status === 404) {
-      throw new Error('Account not found');
-    }
-
-    const errorMessage = 
+    if (axiosError.response?.status === 401) throw new Error('Invalid email or password');
+    if (axiosError.response?.status === 404) throw new Error('Account not found');
+    throw new Error(
       axiosError.response?.data?.message ||
       axiosError.response?.data?.error ||
       axiosError.message ||
-      'Failed to sign in. Please try again later.';
-      
-    throw new Error(errorMessage);
+      'Failed to sign in.'
+    );
   }
 };
 
 export const signOut = (): void => {
-  // Remove user from localStorage
   localStorage.removeItem('user');
-  
-  // You could also invalidate tokens on the backend if needed
-  // For now, just client-side logout
 };
 
 export const getCurrentUser = (): SignInResponse['user'] | null => {
-  const userStr = localStorage.getItem('user');
-  if (!userStr) return null;
-  
   try {
-    return JSON.parse(userStr);
-  } catch (e) {
-    console.error('Error parsing user from storage:', e);
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+  } catch {
     return null;
   }
 };
 
-// In movies.ts, update the createMovieReview function:
-
-export async function createMovieReview(
-  reviewData: CreateReviewInput
-): Promise<CreateReviewResponse> {
+export async function createMovieReview(reviewData: CreateReviewInput): Promise<CreateReviewResponse> {
   try {
     const response = await axios.post<CreateReviewResponse>(
       `${API_BASE_URL}/movies/reviews`,
@@ -356,36 +248,17 @@ export async function createMovieReview(
         reviewerId: reviewData.reviewerId,
         content: reviewData.content
       },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
-
     return response.data;
   } catch (error) {
-    // Properly type the error response
-    const axiosError = error as AxiosError<{
-      message?: string;
-      error?: string;
-    }>;
-    
-    // Log detailed error information
-    console.error('API Error Details:', {
-      status: axiosError.response?.status,
-      data: axiosError.response?.data,
-      headers: axiosError.response?.headers
-    });
-
-    // Provide a user-friendly error message
-    const errorMessage = 
+    const axiosError = error as AxiosError<{ message?: string; error?: string }>;
+    const message =
       axiosError.response?.data?.message ||
       axiosError.response?.data?.error ||
       axiosError.message ||
-      'Failed to create review. Please try again later.';
-
-    throw new Error(errorMessage);
+      'Failed to create review.';
+    throw new Error(message);
   }
 }
 
@@ -398,36 +271,18 @@ export const updateMovieReview = async (
     const response = await axios.put<UpdateReviewResponse>(
       `${API_BASE_URL}/movies/${movieId}/reviews/${reviewId}`,
       updateData,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
-
-    // Validate response structure
-    if (!response.data.message || !response.data.updatedReview) {
-      throw new Error('Invalid response structure from server');
-    }
-
+    if (!response.data.updatedReview) throw new Error('Invalid update response');
     return response.data;
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>;
-    
-    console.error('Update Review Error:', {
-      status: axiosError.response?.status,
-      data: axiosError.response?.data,
-      config: axiosError.config
-    });
-
-    const errorMessage = (
+    throw new Error(
       axiosError.response?.data?.message ||
       axiosError.response?.data?.error ||
       axiosError.message ||
-      'Failed to update review'
+      'Failed to update review.'
     );
-
-    throw new Error(errorMessage);
   }
 };
 
@@ -439,9 +294,7 @@ export const getTranslatedReview = async (
   try {
     const response = await axios.get(
       `${API_BASE_URL}/reviews/${reviewId}/${movieId}/translation`,
-      {
-        params: { language }
-      }
+      { params: { language } }
     );
     return response.data;
   } catch (error) {
@@ -450,46 +303,32 @@ export const getTranslatedReview = async (
   }
 };
 
-export const createFantasyMovie = async (
-  input: FantasyMovieInput
-): Promise<FantasyMovie> => {
+export const createFantasyMovie = async (input: FantasyMovieInput): Promise<FantasyMovie> => {
   try {
-    // Validate required fields
     if (!input.title || !input.overview || !input.genres || !input.releaseDate) {
-      throw new Error('Missing required fields: title, overview, genres, or releaseDate');
+      throw new Error('Missing required fields.');
     }
-
-    // Validate date format
     if (!isValidDateString(input.releaseDate)) {
-      throw new Error('Invalid date format. Please use YYYY-MM-DD');
+      throw new Error('Invalid date format.');
     }
 
-    // Format payload to exactly match backend expectations
     const payload = {
       title: input.title,
       overview: input.overview,
-      genres: input.genres, // Already an array of strings
-      releaseDate: input.releaseDate, // Note: camelCase vs release_date
-      productionCompanies: input.productionCompanies || [], // Ensure array
-      runtime: input.runtime ? Number(input.runtime) : undefined // Optional number
+      genres: input.genres,
+      releaseDate: input.releaseDate,
+      productionCompanies: input.productionCompanies || [],
+      runtime: input.runtime ? Number(input.runtime) : undefined
     };
 
-    const response = await axios.post<{ 
-      message: string; 
-      movieId: string 
-    }>(
+    const response = await axios.post<{ message: string; movieId: string }>(
       `${API_BASE_URL}/fantasy/movies`,
       payload,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
-    // Return a complete fantasy movie object that matches the FantasyMovie interface
     return {
-      id: Number(response.data.movieId), // Convert string to number
+      id: Number(response.data.movieId),
       title: input.title,
       overview: input.overview,
       poster_path: null,
@@ -497,45 +336,26 @@ export const createFantasyMovie = async (
       vote_average: 0,
       vote_count: 0,
       popularity: 0,
-      // Create proper Genre objects with required id property
-      genres: input.genres.map((name, index) => ({ 
-        id: index + 1, // Generate temporary IDs
-        name 
-      })),
-      release_date: input.releaseDate as `${number}-${number}-${number}`,
-      // Create proper ProductionCompany objects with required fields
-      production_companies: input.productionCompanies?.map((name, index) => ({ 
-        id: index + 1, // Generate temporary IDs
+      genres: input.genres.map((name, i) => ({ id: i + 1, name })),
+      release_date: input.releaseDate,
+      production_companies: input.productionCompanies?.map((name, i) => ({
+        id: i + 1,
         name,
         logo_path: null,
         origin_country: 'unknown'
       })) || [],
-      // Use undefined instead of null for runtime if not provided
       runtime: input.runtime || undefined,
       isFantasy: true,
-      // Add the required created_at field
       created_at: new Date().toISOString()
     };
   } catch (error) {
-    const axiosError = error as AxiosError<{ 
-      message?: string;
-      error?: string;
-    }>;
-    
-    console.error('Error creating fantasy movie:', {
-      status: axiosError.response?.status,
-      data: axiosError.response?.data,
-      config: axiosError.config
-    });
-
-    const errorMessage = (
+    const axiosError = error as AxiosError<{ message?: string; error?: string }>;
+    throw new Error(
       axiosError.response?.data?.message ||
       axiosError.response?.data?.error ||
       axiosError.message ||
-      'Failed to create fantasy movie'
+      'Failed to create fantasy movie.'
     );
-
-    throw new Error(errorMessage);
   }
 };
 
@@ -546,45 +366,29 @@ export const deleteMovieReview = async (
   try {
     const response = await axios.delete(
       `${API_BASE_URL}/movies/${movieId}/reviews/${reviewId}`,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
-    // Handle different successful response structures
     if (response.status === 204) {
       return { success: true, message: 'Review deleted successfully' };
     }
 
-    if (response.data?.message) {
-      return { success: true, message: response.data.message };
-    }
-
-    return { success: true, message: 'Review deleted' };
-    
+    return {
+      success: true,
+      message: response.data?.message || 'Review deleted'
+    };
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>;
-    
-    console.error('Delete Review Error:', {
-      status: axiosError.response?.status,
-      data: axiosError.response?.data,
-      config: axiosError.config
-    });
-
-    const errorMessage = (
+    throw new Error(
       axiosError.response?.data?.message ||
       axiosError.response?.data?.error ||
       axiosError.message ||
-      'Failed to delete review'
+      'Failed to delete review.'
     );
-
-    throw new Error(errorMessage);
   }
 };
 
-export const fetchSimilarMovies = async (movieId: number, page: number = 1): Promise<Movie[]> => {
+export const fetchSimilarMovies = async (movieId: number, page = 1): Promise<Movie[]> => {
   if (!TMDB_API_KEY) {
     console.warn('TMDB API key not configured - similar movies feature disabled');
     return [];
@@ -600,23 +404,71 @@ export const fetchSimilarMovies = async (movieId: number, page: number = 1): Pro
       }
     });
 
-    // Normalize the similar movies data to match our Movie type
     return response.data.results.map((movie: any) => normalizeMovieData(movie, 'tmdb'));
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>;
-    
     console.error('Error fetching similar movies:', {
       movieId,
       status: axiosError.response?.status,
-      data: axiosError.response?.data,
-      config: axiosError.config
+      data: axiosError.response?.data
     });
 
     throw new Error(
       axiosError.response?.data?.status_message ||
       axiosError.message ||
-      'Failed to fetch similar movies'
+      'Failed to fetch similar movies.'
     );
   }
 };
 
+/**
+ * Upload a poster image for a movie.
+ * @param movieId - ID of the movie.
+ * @param file - Poster image file.
+ */
+export const uploadMoviePoster = async (movieId: number, file: File): Promise<{ message: string }> => {
+  const formData = new FormData();
+  formData.append('movieId', movieId.toString());
+  formData.append('poster', file);
+
+  try {
+    const response = await axios.post(`${API_BASE_URL}/upload/poster`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    throw new Error(
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to upload poster.'
+    );
+  }
+};
+
+/**
+ * Upload cast details for a movie.
+ * @param movieId - ID of the movie.
+ * @param castJsonFile - JSON file containing cast array.
+ */
+export const uploadMovieCast = async (movieId: number, castJsonFile: File): Promise<{ message: string }> => {
+  const formData = new FormData();
+  formData.append('movieId', movieId.toString());
+  formData.append('cast', castJsonFile);
+
+  try {
+    const response = await axios.post(`${API_BASE_URL}/upload/cast`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  } catch (error) {
+    const axiosError = error as AxiosError<ApiErrorResponse>;
+    throw new Error(
+      axiosError.response?.data?.message ||
+      axiosError.response?.data?.error ||
+      axiosError.message ||
+      'Failed to upload cast.'
+    );
+  }
+};

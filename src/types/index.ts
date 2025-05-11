@@ -299,3 +299,16 @@ export interface SearchResponse {
   page: number;
   totalPages: number;
 }
+
+export interface FileUploadResponse {
+  url: string; // URL to the uploaded file
+  status: string; // Upload status (e.g., 'success', 'failed')
+  errorMessage?: string; // Optional, in case of failure
+}
+
+export interface FileUploadInput {
+  file: File; // Assuming a file is uploaded, this could be a file object
+  category: 'poster' | 'cast'; // To distinguish between different types of uploads
+  movieId?: number; // Movie ID for poster upload
+  actorId?: number; // Actor ID for cast image upload
+}

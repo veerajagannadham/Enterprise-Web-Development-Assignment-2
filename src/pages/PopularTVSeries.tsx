@@ -36,7 +36,7 @@ const PopularTVSeries = () => {
   // This query fetches TV series from the API
   const { data: allSeries = [], isLoading, error } = useQuery({
     queryKey: ['popularTVSeries', backendPage],
-    queryFn: () => fetchPopularTVSeries(backendPage),
+    queryFn: () => fetchPopularTVSeries(),
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
