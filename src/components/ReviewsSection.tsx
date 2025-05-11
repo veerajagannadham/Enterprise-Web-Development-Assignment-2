@@ -13,25 +13,27 @@ import {
   Divider,
   IconButton
 } from '@mui/material';
-
 import EditIcon from '@mui/icons-material/Edit';
-import { createMovieReview, updateMovieReview } from '../api/movies';
-import type { Review, CreateReviewResponse, UpdateReviewResponse } from '../types';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { createMovieReview, updateMovieReview, deleteMovieReview } from '../api/movies';
+import type { Review, CreateReviewResponse } from '../types';
 
 interface ReviewSectionProps {
   reviews: Review[];
   movieId: number;
+  currentUser: { id: string; username: string } | null;
 }
 
-export default function ReviewSection({ reviews = [], movieId }: ReviewSectionProps) {
-  // State for new review submission
+export default function ReviewSection({ 
+  reviews = [], 
+  movieId, 
+  currentUser 
+}: ReviewSectionProps) {
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [localReviews, setLocalReviews] = useState<Review[]>(reviews);
-
-  // State for editing reviews
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -50,25 +52,26 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
 
       const response: CreateReviewResponse = await createMovieReview({
         movieId,
-        reviewerId: 'anonymous', // Default since no auth
+        reviewerId: currentUser?.id || 'unauthenticated',
         content: content.trim()
       });
 
       setSuccess('Review submitted successfully!');
-      setLocalReviews(prev => [
-        {
-          id: response.reviewId,
-          MovieId: movieId,
-          author: 'You',
-          content: content.trim(),
-          created_at: new Date().toISOString()
-        },
-        ...prev
-      ]);
+
+      const newReview: Review = {
+        id: response.reviewId,
+        MovieId: movieId,
+        author: currentUser?.username || 'User',
+        content: content.trim(),
+        created_at: new Date().toISOString(),
+        userId: currentUser?.id || undefined
+      };
+
+      setLocalReviews(prev => [newReview, ...prev]);
       setContent('');
     } catch (err) {
       const error = err as Error;
-      setError(error.message);
+      setError(error.message || 'Failed to submit review');
     } finally {
       setSubmitting(false);
     }
@@ -95,7 +98,7 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
       setError(null);
       setSuccess(null);
 
-      const response: UpdateReviewResponse = await updateMovieReview(
+      await updateMovieReview(
         movieId,
         editingReviewId,
         { content: editContent.trim() }
@@ -112,9 +115,30 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
       handleCancelEdit();
     } catch (err) {
       const error = err as Error;
-      setError(error.message);
+      setError(error.message || 'Failed to update review');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: number) => {
+    if (!window.confirm('Are you sure you want to delete this review?')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(reviewId);
+      setError(null);
+
+      await deleteMovieReview(movieId, reviewId);
+
+      setSuccess('Review deleted successfully!');
+      setLocalReviews(prev => prev.filter(review => review.id !== reviewId));
+    } catch (err) {
+      const error = err as Error;
+      setError(error.message || 'Failed to delete review');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -124,7 +148,6 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
         Movie Reviews
       </Typography>
 
-      {/* New Review Form */}
       <Box sx={{ mb: 3 }}>
         <TextField
           fullWidth
@@ -145,11 +168,9 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
         </Button>
       </Box>
 
-      {/* Status Messages */}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-      {/* Reviews List */}
       <Box>
         <Typography variant="subtitle1" gutterBottom>
           {localReviews.length} {localReviews.length === 1 ? 'Review' : 'Reviews'}
@@ -193,7 +214,7 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
                       primary={
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography fontWeight="bold">
-                            {review.author || 'Anonymous'}
+                            {review.author}
                           </Typography>
                           <Box>
                             <IconButton
@@ -203,6 +224,18 @@ export default function ReviewSection({ reviews = [], movieId }: ReviewSectionPr
                               sx={{ mr: 1 }}
                             >
                               <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              aria-label="delete"
+                              onClick={() => handleDeleteReview(review.id)}
+                              size="small"
+                              disabled={isDeleting === review.id}
+                            >
+                              {isDeleting === review.id ? (
+                                <CircularProgress size={20} />
+                              ) : (
+                                <DeleteIcon fontSize="small" />
+                              )}
                             </IconButton>
                           </Box>
                         </Box>

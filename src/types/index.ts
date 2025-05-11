@@ -106,6 +106,7 @@ export interface Review {
   content: string;
   created_at: string;
   rating?: number;
+  userId?: string;
 }
 
 export interface TranslatedReview {

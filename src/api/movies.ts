@@ -1,10 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type {
   Movie,
-  Genre,
-  ProductionCompany,
   CreateReviewInput,
-  Review,
   CreateReviewResponse,
   FantasyMovie,
   FantasyMovieInput,
@@ -17,7 +14,7 @@ import type {
   SignInResponse
 } from '../types';
 
-const API_BASE_URL = 'https://vb9rdedn26.execute-api.us-east-1.amazonaws.com/prod';
+const API_BASE_URL = 'https://y99h6zhtd2.execute-api.us-east-1.amazonaws.com/prod';
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
@@ -273,7 +270,9 @@ export const updateMovieReview = async (
       updateData,
       { headers: { 'Content-Type': 'application/json' } }
     );
-    if (!response.data.updatedReview) throw new Error('Invalid update response');
+    if (!response.data.updatedReview) {
+      throw new Error('Invalid update response');
+    }
     return response.data;
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>;
@@ -285,6 +284,7 @@ export const updateMovieReview = async (
     );
   }
 };
+
 
 export const getTranslatedReview = async (
   reviewId: string,

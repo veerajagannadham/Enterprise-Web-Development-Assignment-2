@@ -15,7 +15,6 @@ import {
   Slider,
   Button
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
 import { useState, useMemo, useEffect } from 'react';
 import MovieCard from '../components/MovieCard';
 import type { Movie } from '../types';

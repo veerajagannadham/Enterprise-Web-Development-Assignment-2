@@ -36,10 +36,6 @@ const Layout = () => {
             <Button color="inherit" component={Link} to="/fantasy">
               Fantasy Movie
             </Button>
-            <Button color="inherit" component={Link} to="/upload">
-              Upload
-            </Button>
-
             {/* Auth buttons with some spacing */}
             <Stack direction="row" spacing={1} sx={{ ml: 2 }}>
               <Button 

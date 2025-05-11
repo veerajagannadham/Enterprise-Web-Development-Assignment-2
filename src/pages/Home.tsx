@@ -1,8 +1,6 @@
-import { Box, Typography, Button, Container, Paper, Grid } from '@mui/material'
+import { Box, Typography, Button, Container, Paper } from '@mui/material'
 import { Link } from 'react-router-dom'
 import MovieIcon from '@mui/icons-material/Movie'
-import TvIcon from '@mui/icons-material/Tv'
-import PeopleIcon from '@mui/icons-material/People'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 
 const Home = () => {

@@ -16,7 +16,7 @@ import {
   CardMedia
 } from '@mui/material';
 import ReviewsSection from '../components/ReviewsSection';
-import type { Movie, Review } from '../types';
+import type { Movie } from '../types';
 
 const MovieDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -338,9 +338,8 @@ const MovieDetails = () => {
 
       <Divider sx={{ my: 4 }} />
       <ReviewsSection 
-        movieId={Number(id)} 
-        reviews={reviews}
-      />
+        movieId={Number(id)}
+        reviews={reviews} currentUser={null}      />
     </Box>
   );
 };
