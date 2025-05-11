@@ -35,6 +35,11 @@ type FavoriteType = 'tv' | 'actor';
 type SortOption = 'name-asc' | 'name-desc' | 'rating-asc' | 'rating-desc' | 'date-asc' | 'date-desc';
 type FilterOption = 'all' | 'recent' | 'high-rated';
 
+interface FavoritesState {
+    tv: Array<TVSeries & MediaItem>;
+    actor: Array<Actor & ActorItem>;
+}
+
 const ItemsContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
     flexWrap: 'wrap',
@@ -54,13 +59,10 @@ const ItemCard = styled(Card)({
 
 const FavoritesPage = () => {
     const [activeTab, setActiveTab] = useState<FavoriteType>('tv');
-    const [favorites, setFavorites] = useState<{
-        tv: (TVSeries & MediaItem)[];
-        actor: (Actor & ActorItem)[];
-    }>({ tv: [], actor: [] });
+    const [favorites, setFavorites] = useState<FavoritesState>({ tv: [], actor: [] });
     const [loading, setLoading] = useState(true);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
-    const [suggestedItems, setSuggestedItems] = useState<(TVSeries | Actor)[]>([]);
+    const [suggestedItems, setSuggestedItems] = useState<Array<TVSeries | Actor>>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -74,23 +76,25 @@ const FavoritesPage = () => {
         // Apply filtering
         let filteredItems = [...items];
         if (activeTab === 'tv') {
+            const tvItems = filteredItems as Array<TVSeries & MediaItem>;
             if (filterOption === 'recent') {
-                filteredItems = filteredItems.filter(item => 
+                filteredItems = tvItems.filter(item => 
                     item.first_air_date && 
                     new Date(item.first_air_date) > new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
                 );
             } else if (filterOption === 'high-rated') {
-                filteredItems = filteredItems.filter(item => 
-                    item.vote_average >= 7.5
+                filteredItems = tvItems.filter(item => 
+                    item.vote_average && item.vote_average >= 7.5
                 );
             }
         } else {
+            const actorItems = filteredItems as Array<Actor & ActorItem>;
             if (filterOption === 'recent') {
-                filteredItems = filteredItems.filter(item => 
+                filteredItems = actorItems.filter(item => 
                     item.popularity && item.popularity > 50
                 );
             } else if (filterOption === 'high-rated') {
-                filteredItems = filteredItems.filter(item => 
+                filteredItems = actorItems.filter(item => 
                     item.popularity && item.popularity > 75
                 );
             }
@@ -99,7 +103,7 @@ const FavoritesPage = () => {
         // Apply sorting
         return filteredItems.sort((a, b) => {
             const getSortName = (item: (TVSeries & MediaItem) | (Actor & ActorItem)): string => {
-                if ('name' in item) return item.name;
+                if ('name' in item) return item.name || '';
                 return '';
             };
 
@@ -110,9 +114,9 @@ const FavoritesPage = () => {
                 case 'name-asc': return nameA.localeCompare(nameB);
                 case 'name-desc': return nameB.localeCompare(nameA);
                 case 'rating-asc': 
-                    return (a.vote_average || 0) - (b.vote_average || 0);
+                    return ((a as MediaItem).vote_average || 0) - ((b as MediaItem).vote_average || 0);
                 case 'rating-desc': 
-                    return (b.vote_average || 0) - (a.vote_average || 0);
+                    return ((b as MediaItem).vote_average || 0) - ((a as MediaItem).vote_average || 0);
                 case 'date-asc':
                     if ('first_air_date' in a && 'first_air_date' in b) {
                         return new Date(a.first_air_date || '').getTime() - new Date(b.first_air_date || '').getTime();
@@ -146,9 +150,21 @@ const FavoritesPage = () => {
                     localStorage.setItem('hasSeenDemo', 'true');
                 }
 
+                // Fetch TV shows with proper typing
+                const tvShowPromises = getLocalFavorites('tv').map(async (id) => {
+                    const show = await getTVDetails(id);
+                    return show as (TVSeries & MediaItem) | null;
+                });
+                
+                // Fetch actors with proper typing
+                const actorPromises = getLocalFavorites('actor').map(async (id) => {
+                    const actor = await getPersonDetails(id);
+                    return actor as (Actor & ActorItem) | null;
+                });
+                
                 const [tvShows, actors] = await Promise.all([
-                    Promise.all(getLocalFavorites('tv').map(id => getTVDetails(id))),
-                    Promise.all(getLocalFavorites('actor').map(id => getPersonDetails(id)))
+                    Promise.all(tvShowPromises),
+                    Promise.all(actorPromises)
                 ]);
 
                 setFavorites({
@@ -181,17 +197,17 @@ const FavoritesPage = () => {
 
     const fetchSuggestions = async () => {
         try {
-            let data: (TVSeries | Actor)[];
             if (activeTab === 'tv') {
                 const response = await fetchPopularTVShows(page);
-                data = response;
+                // Ensure each item in response has TVSeries properties
+                setSuggestedItems(response as unknown as Array<TVSeries>);
                 setTotalPages(10);
             } else {
                 const response = await fetchPopularActors(page);
-                data = response;
+                // Ensure each item in response has Actor properties
+                setSuggestedItems(response as unknown as Array<Actor>);
                 setTotalPages(10);
             }
-            setSuggestedItems(data);
         } catch (error) {
             console.error('Error fetching suggestions:', error);
         }
@@ -212,7 +228,7 @@ const FavoritesPage = () => {
         }
     }, [page, activeTab, quickAddOpen]);
 
-    const addToFavorites = (item: TVSeries | Actor) => {
+    const addToFavorites = async (item: TVSeries | Actor) => {
         const type = activeTab;
         const currentFavorites = getLocalFavorites(type);
 
@@ -220,16 +236,36 @@ const FavoritesPage = () => {
             const updated = [...currentFavorites, item.id];
             saveLocalFavorites(type, updated);
 
-            setFavorites(prev => ({
-                ...prev,
-                [type]: [...prev[type], item]
-            }));
+            try {
+                // Get full details for the item
+                if (type === 'tv') {
+                    const detailedItem = await getTVDetails(item.id);
+                    if (detailedItem) {
+                        setFavorites(prev => ({
+                            ...prev,
+                            tv: [...prev.tv, detailedItem as TVSeries & MediaItem]
+                        }));
+                    }
+                } else {
+                    const detailedItem = await getPersonDetails(item.id);
+                    if (detailedItem) {
+                        setFavorites(prev => ({
+                            ...prev,
+                            actor: [...prev.actor, detailedItem as Actor & ActorItem]
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('Error adding to favorites:', error);
+                // Revert the local storage change if adding fails
+                saveLocalFavorites(type, currentFavorites);
+            }
         }
     };
 
     const isEmpty = sortedAndFilteredFavorites.length === 0;
     const displayedItems = sortedAndFilteredFavorites.filter(item => 
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+        item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -245,7 +281,7 @@ const FavoritesPage = () => {
             </Typography>
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Tabs value={activeTab} onChange={(_e, newValue) => setActiveTab(newValue)} sx={{ flexGrow: 1 }}>
+                <Tabs value={activeTab} onChange={(_e, newValue) => setActiveTab(newValue as FavoriteType)} sx={{ flexGrow: 1 }}>
                     <Tab
                         value="tv"
                         label={
@@ -383,11 +419,11 @@ const FavoritesPage = () => {
                                     component="img"
                                     height="300"
                                     image={
-                                        item.poster_path
-                                            ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                                        (item as TVSeries).poster_path
+                                            ? `https://image.tmdb.org/t/p/w500${(item as TVSeries).poster_path}`
                                             : '/placeholder-tv.png'
                                     }
-                                    alt={item.name}
+                                    alt={item.name || ''}
                                     onClick={() => navigate(`/tv/${item.id}`)}
                                     sx={{ cursor: 'pointer', objectFit: 'cover' }}
                                 />
@@ -398,11 +434,11 @@ const FavoritesPage = () => {
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                         <Star color="warning" />
                                         <Typography variant="body2">
-                                            {item.vote_average.toFixed(1)}
+                                            {((item as MediaItem).vote_average || 0).toFixed(1)}
                                         </Typography>
-                                        {item.first_air_date && (
+                                        {(item as TVSeries).first_air_date && (
                                             <Typography variant="body2" sx={{ ml: 'auto' }}>
-                                                {new Date(item.first_air_date).getFullYear()}
+                                                {new Date((item as TVSeries).first_air_date || '').getFullYear()}
                                             </Typography>
                                         )}
                                     </Box>
@@ -425,11 +461,11 @@ const FavoritesPage = () => {
                                 <Box sx={{ display: 'flex', justifyContent: 'center', pt: 3 }}>
                                     <Avatar
                                         src={
-                                            item.profile_path
-                                                ? `https://image.tmdb.org/t/p/w500${item.profile_path}`
+                                            (item as Actor).profile_path
+                                                ? `https://image.tmdb.org/t/p/w500${(item as Actor).profile_path}`
                                                 : '/actor-placeholder.png'
                                         }
-                                        alt={item.name}
+                                        alt={item.name || ''}
                                         sx={{
                                             width: 150,
                                             height: 150,
@@ -445,7 +481,7 @@ const FavoritesPage = () => {
                                         {item.name}
                                     </Typography>
                                     <Chip
-                                        label={item.known_for_department || 'Actor'}
+                                        label={(item as Actor).known_for_department || 'Actor'}
                                         size="small"
                                         color="primary"
                                         sx={{ mb: 1 }}
@@ -505,22 +541,22 @@ const FavoritesPage = () => {
                                             component="img"
                                             height="250"
                                             image={
-                                                item.poster_path
-                                                    ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                                                (item as TVSeries).poster_path
+                                                    ? `https://image.tmdb.org/t/p/w500${(item as TVSeries).poster_path}`
                                                     : '/placeholder-tv.png'
                                             }
-                                            alt={('name' in item) ? item.name : 'Unknown'}
+                                            alt={item.name || 'Unknown'}
                                             sx={{ cursor: 'pointer' }}
                                             onClick={() => navigate(`/tv/${item.id}`)}
                                         />
                                         <CardContent>
                                             <Typography variant="body2" noWrap textAlign="center">
-                                                {('name' in item) ? item.name : 'Unknown'}
+                                                {item.name || 'Unknown'}
                                             </Typography>
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
                                                 <Star color="warning" fontSize="small" />
                                                 <Typography variant="caption" sx={{ ml: 0.5 }}>
-                                                    {item.vote_average?.toFixed(1) || 'N/A'}
+                                                    {(item as TVSeries).vote_average?.toFixed(1) || 'N/A'}
                                                 </Typography>
                                             </Box>
                                         </CardContent>
@@ -530,8 +566,8 @@ const FavoritesPage = () => {
                                         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2 }}>
                                             <Avatar
                                                 src={
-                                                    item.profile_path
-                                                        ? `https://image.tmdb.org/t/p/w500${item.profile_path}`
+                                                    (item as Actor).profile_path
+                                                        ? `https://image.tmdb.org/t/p/w500${(item as Actor).profile_path}`
                                                         : '/actor-placeholder.png'
                                                 }
                                                 sx={{ width: 100, height: 100, cursor: 'pointer' }}
@@ -540,10 +576,10 @@ const FavoritesPage = () => {
                                         </Box>
                                         <CardContent>
                                             <Typography variant="body2" noWrap textAlign="center">
-                                                {item.name}
+                                                {item.name || 'Unknown'}
                                             </Typography>
                                             <Chip
-                                                label={item.known_for_department || 'Actor'}
+                                                label={(item as Actor).known_for_department || 'Actor'}
                                                 size="small"
                                                 sx={{ mt: 1 }}
                                             />

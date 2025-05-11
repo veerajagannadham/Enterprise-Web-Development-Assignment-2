@@ -40,14 +40,6 @@ const router = createBrowserRouter([
           </PrivateRoute>
         ) 
       },
-      {
-        path: 'upload',
-        element: (
-          <PrivateRoute>
-            <CreateCastAndUploadPoster />
-          </PrivateRoute>
-        )
-      },
       { path: 'movie/:id', element: <MovieDetails /> },
       { path: 'similar/:movieId', element: <SimilarMovies /> },
       { path: 'actor/:id', element: <ActorDetails /> },
