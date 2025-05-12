@@ -3,8 +3,6 @@ import type {
   Movie,
   CreateReviewInput,
   CreateReviewResponse,
-  FantasyMovie,
-  FantasyMovieInput,
   UpdateReviewInput,
   UpdateReviewResponse,
   ApiErrorResponse,
@@ -18,9 +16,6 @@ const API_BASE_URL = 'https://y99h6zhtd2.execute-api.us-east-1.amazonaws.com/pro
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
-const isValidDateString = (dateStr: string): dateStr is `${number}-${number}-${number}` => {
-  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
-};
 
 const normalizeMovieData = (data: any, source: 'api' | 'tmdb' = 'api'): Movie => {
   const baseMovie = {

@@ -14,8 +14,7 @@ import {
   IconButton
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { createMovieReview, updateMovieReview, deleteMovieReview } from '../api/movies';
+import { createMovieReview, updateMovieReview } from '../api/movies';
 import type { Review, CreateReviewResponse } from '../types';
 
 interface ReviewSectionProps {
@@ -37,7 +36,7 @@ export default function ReviewSection({
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+
 
   const handleSubmitReview = async () => {
     if (!content.trim()) {
