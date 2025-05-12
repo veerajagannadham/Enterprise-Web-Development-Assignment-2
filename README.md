@@ -12,6 +12,7 @@ This is a Single Page Application (SPA) built with React, TypeScript, and Vite t
 - User authentication (sign up and sign in)
 - Private routes for premium features
 - Responsive design
+- TMDB Endpoints Used
 
 ### Premium Features (Requires Authentication)
 - Create fantasy movie records
