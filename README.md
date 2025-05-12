@@ -213,8 +213,7 @@ The frontend communicates with backend services implemented as AWS Lambda functi
 
 
 ## Video Demonstration
-
-[Insert YouTube video URL here]
+ https://www.youtube.com/watch?v=OKFsDgZY6I8
 
 ## GitHub Repositories
 
