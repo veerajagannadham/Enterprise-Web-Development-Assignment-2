@@ -217,4 +217,4 @@ The frontend communicates with backend services implemented as AWS Lambda functi
 
 ## GitHub Repositories
 
-- Frontend (React): https://github.com/veerajagannadham/Assignment-2-Frontend-Backend
+- Frontend (React): (https://github.com/veerajagannadham/Enterprise-Web-Development-Assignment-2-)
